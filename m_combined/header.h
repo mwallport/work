@@ -1,12 +1,7 @@
-#ifndef __MEERSTETTER__
-#define __MEERSTETTER__
- #if defined(ARDUINO) && ARDUINO >= 100
-      #include "Arduino.h"
-    #else
-      #include "WProgram.h"
-    #endif
+#ifndef MEPORT_H
+#define MEPORT_H
+
 #include <stdint.h>
-#include <SoftwareSerial.h>
 
 //This TX Buffer is only used if the Physical Communication Interface receives a string.
 //If every byte is directly forwarded to the Interface, this buffer is not needed
@@ -14,7 +9,9 @@
 
 //This RX Buffer will be allocated 2 times
 #define MEPORT_MAX_RX_BUF_SIZE 100 //Bytes
+
 #define MEPORT_SET_AND_QUERY_TIMEOUT 1000 //ms TODO : this was 100
+
 #define MEPORT_ERROR_CMD_NOT_AVAILABLE      1    
 #define MEPORT_ERROR_DEVICE_BUSY            2
 #define MEPORT_ERROR_GENERAL_COM            3 
@@ -26,7 +23,6 @@
 #define MEPORT_ERROR_SET_TIMEOUT            20
 #define MEPORT_ERROR_QUERY_TIMEOUT          21
 
-#define Pin13LED         13
 
 typedef enum
 {
@@ -35,14 +31,22 @@ typedef enum
     MePort_SB_IsLastByte,
 } MePort_SB;
 
-struct MeFrame_RcvFrameS
-{
-    uint8_t DataReceived;
-    uint8_t AckReceived;
-    uint8_t Address;
-    uint16_t SeqNr;
-    int8_t Payload[MEPORT_MAX_RX_BUF_SIZE];
-};
+extern void MePort_SendByte(int8_t in, MePort_SB FirstLast);
+extern void MePort_ReceiveByte(int8_t *arr);
+extern void MePort_SemaphorTake(uint32_t TimeoutMs);
+extern void MePort_SemaphorGive(void);
+extern void MePort_ErrorThrow(int32_t ErrorNr);
+
+#endif
+
+extern void ComPort_Open(int PortNr, int Speed);
+extern void ComPort_Close(void);
+extern void ComPort_Send(char *in);
+
+#ifndef MECOM_H
+#define MECOM_H
+
+#include <stdint.h>
 
 typedef enum 
 {
@@ -65,80 +69,10 @@ typedef struct
     float Max;
 } MeParFloatFields;
 
-
-typedef struct _statsBlock
-{
-    uint32_t    pktRx;
-    uint32_t    pktRxTimeout;
-    uint32_t    pktTxBadLength;
-} statsBlock;
-
-
-class meerstetterRS485
-{
-    public:
-    meerstetterRS485(uint32_t, uint32_t);
-    virtual ~ meerstetterRS485();
-
-    void MePort_SendByte(int8_t in, MePort_SB FirstLast);
-    void MePort_ReceiveByte(int8_t *arr);
-    void MePort_SemaphorTake(uint32_t TimeoutMs);
-    void MePort_SemaphorGive(void);
-    void MePort_ErrorThrow(int32_t ErrorNr);
-    void ComPort_Open(int PortNr, int Speed);
-    void ComPort_Close(void);
-    void ComPort_Send(char *in);
-    bool recvData(uint32_t TimeoutMs);
-    uint8_t MeCom_ResetDevice(uint8_t Address);
-    uint8_t MeCom_GetIdentString(uint8_t Address, int8_t *arr);
-    uint8_t MeCom_ParValuel(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParLongFields  *Fields, MeParCmd Cmd);
-    uint8_t MeCom_ParValuef(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParFloatFields *Fields, MeParCmd Cmd);
-    uint16_t MeCRC16(uint16_t n, uint8_t m);
-    void MeFrame_Send(int8_t Control, uint8_t Address, uint32_t Length, uint16_t SeqNr, int8_t *Payload);
-    void MeFrame_Receive(int8_t in);
-    uint8_t MeInt_Query(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload);
-    uint8_t MeInt_Set(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload);
-    int8_t MeVarConv_UcToHEX(uint8_t value);
-    uint8_t MeVarConv_HexToDigit(int8_t *arr);
-    uint8_t MeVarConv_HexToUc   (int8_t *arr);
-    int8_t MeVarConv_HexToSc   (int8_t *arr);
-    uint16_t MeVarConv_HexToUs   (int8_t *arr);
-    int16_t MeVarConv_HexToSs   (int8_t *arr);
-    uint32_t MeVarConv_HexToUl   (int8_t *arr);
-    int32_t MeVarConv_HexToSl   (int8_t *arr);
-    float MeVarConv_HexToFloat(int8_t *arr);
-    void MeVarConv_AddDigitHex   (int8_t *arr, uint8_t  value);
-    void MeVarConv_AddUcHex      (int8_t *arr, uint8_t  value);
-    void MeVarConv_AddScHex      (int8_t *arr, int8_t   value);
-    void MeVarConv_AddUsHex      (int8_t *arr, uint16_t value);
-    void MeVarConv_AddSsHex      (int8_t *arr, int16_t  value);
-    void MeVarConv_AddUlHex      (int8_t *arr, uint32_t value);
-    void MeVarConv_AddSlHex      (int8_t *arr, int32_t  value);
-    void MeVarConv_AddFloatHex   (int8_t *arr, float    value);
-    static uint8_t HEXtoNR(int8_t uc);
-    static uint16_t LastCRC;
-    static uint16_t SequenceNr;
-    static const int8_t cHex[16];
-    static int8_t RcvBuf[MEPORT_MAX_RX_BUF_SIZE + 20];
-    static int32_t RcvCtr;
-    static char Buffer[MEPORT_MAX_TX_BUF_SIZE];
-    static int Ctr;
-
-    protected:
-    SoftwareSerial  RS485Serial;
-    statsBlock      stats;
-    struct MeFrame_RcvFrameS MeFrame_RcvFrame;
-    int8_t *MeInt_QueryRcvPayload;
-    static const uint16_t CRC16_table_C[256];
-
-    private:
-    meerstetterRS485();
-    meerstetterRS485(const meerstetterRS485&);
-    meerstetterRS485 operator=(const meerstetterRS485&);
-};
-
-
-
+extern uint8_t MeCom_ResetDevice(uint8_t Address);
+extern uint8_t MeCom_GetIdentString(uint8_t Address, int8_t *arr);
+extern uint8_t MeCom_ParValuel(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParLongFields  *Fields, MeParCmd Cmd);
+extern uint8_t MeCom_ParValuef(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParFloatFields *Fields, MeParCmd Cmd);
 
 //**************************************************************************
 //**********Definition of all Common Parameter Numbers**********************
@@ -345,6 +279,72 @@ class meerstetterRS485
 #define MeCom_TEC_Oth_PbcSetOutputStates(Address, Inst, Value, Cmd)                 MeCom_ParValuel(Address, 52102, Inst, Value, Cmd)
 #define MeCom_TEC_Oth_PbcReadInputStates(Address, Inst, Value, Cmd)                 MeCom_ParValuel(Address, 52103, Inst, Value, Cmd)
 #define MeCom_TEC_Oth_ExternalActualObjectTemperature(Address, Inst, Value, Cmd)    MeCom_ParValuef(Address, 52200, Inst, Value, Cmd)
+#endif
+
+
+#ifndef MECRC_H
+#define MECRC_H
+
+#include <stdint.h>
+
+extern uint16_t MeCRC16(uint16_t n, uint8_t m);
+
+#endif
+#ifndef MEFRAME_H
+#define MEFRAME_H
+
+
+struct MeFrame_RcvFrameS
+{
+    uint8_t DataReceived;
+    uint8_t AckReceived;
+    uint8_t Address;
+    uint16_t SeqNr;
+    int8_t Payload[MEPORT_MAX_RX_BUF_SIZE];
+};
+
+extern void MeFrame_Send(int8_t Control, uint8_t Address, uint32_t Length, uint16_t SeqNr, int8_t *Payload);
+extern void MeFrame_Receive(int8_t in);
+
+extern struct MeFrame_RcvFrameS MeFrame_RcvFrame;
+
+#endif
+#ifndef MEINT_H
+#define MEINT_H
+
+#include <stdint.h>
+
+extern int8_t *MeInt_QueryRcvPayload;
+
+extern uint8_t MeInt_Query(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload);
+extern uint8_t MeInt_Set(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload);
+
 
 #endif
 
+#ifndef MEVARCONV_H
+#define MEVARCONV_H
+
+#include <stdint.h>
+
+extern int8_t MeVarConv_UcToHEX(uint8_t value);
+
+extern uint8_t  MeVarConv_HexToDigit(int8_t *arr);
+extern uint8_t  MeVarConv_HexToUc   (int8_t *arr);
+extern int8_t   MeVarConv_HexToSc   (int8_t *arr);
+extern uint16_t MeVarConv_HexToUs   (int8_t *arr);
+extern int16_t  MeVarConv_HexToSs   (int8_t *arr);
+extern uint32_t MeVarConv_HexToUl   (int8_t *arr);
+extern int32_t  MeVarConv_HexToSl   (int8_t *arr);
+extern float    MeVarConv_HexToFloat(int8_t *arr);
+
+extern void MeVarConv_AddDigitHex   (int8_t *arr, uint8_t  value);
+extern void MeVarConv_AddUcHex      (int8_t *arr, uint8_t  value);
+extern void MeVarConv_AddScHex      (int8_t *arr, int8_t   value);
+extern void MeVarConv_AddUsHex      (int8_t *arr, uint16_t value);
+extern void MeVarConv_AddSsHex      (int8_t *arr, int16_t  value);
+extern void MeVarConv_AddUlHex      (int8_t *arr, uint32_t value);
+extern void MeVarConv_AddSlHex      (int8_t *arr, int32_t  value);
+extern void MeVarConv_AddFloatHex   (int8_t *arr, float    value);
+
+#endif

@@ -1,3 +1,8 @@
+ #if defined(ARDUINO) && ARDUINO >= 100
+      #include "Arduino.h"
+    #else
+      #include "WProgram.h"
+    #endif
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -57,11 +62,11 @@ int meerstetterRS485::Ctr;
 
 
 // constructor
-meerstetterRS485::meerstetterRS485(uint32_t SSerialRX, uint32_t SSerialTX)
- : RS485Serial(SSerialRX, SSerialTX)
+meerstetterRS485::meerstetterRS485(uint32_t _SSerialRX, uint32_t _SSerialTX)
+ : RS485Serial(_SSerialRX, _SSerialTX)
 {
+    memset(reinterpret_cast<void*>(&stats), '\0', sizeof(stats));
     MeInt_QueryRcvPayload = MeFrame_RcvFrame.Payload;
-    pinMode(Pin13LED, OUTPUT);
     RS485Serial.begin(9600);
 }
 
@@ -80,39 +85,100 @@ void meerstetterRS485::ComPort_Send(char *in)
     size = RS485Serial.write(in);
 
     if(size != len)
-        {
-          Serial.print("ERROR : ComPort_Send did not get size bytes sent, got : ");
-          Serial.println(size, DEC);
-          return; //TODO : return data Write Error
-        /*} else
-        {
-          Serial.print("sent ");
-          Serial.print(size, DEC);
-          Serial.println(" bytes"); */
-        }
+    {
+        Serial.print("ERROR : ComPort_Send did not get size bytes sent, got : ");
+        Serial.println(size, DEC);
+        stats.pktTxBadLength += 1;
+        return; //TODO : return data Write Error
+    #ifdef _DEBUG_PKT_TX_
+    } else
+    {
+        Serial.print("sent ");
+        Serial.print(size, DEC);
+        Serial.println(" bytes"); */
+    #endif
+    }
 }
 
 
-void meerstetterRS485::recvData()  // TODO : this was a thread
+bool meerstetterRS485::recvData(uint32_t TimeoutMs)
 {
-    char Buffer[100];
-    int32_t bytes_read = 0;
+    uint8_t Buffer[100];
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = '!';
+    const uint8_t ETX       = '\r';
+    unsigned long startTime = millis();
 
         
-    // TODO : modify this to read and process one byte at a time
-    while( ((bytes_read < 100) ) && (RS485Serial.available()) )  //TODO #define the Buffer length of 100
+    // try to read a packet for a total of TimeoutMs milliseconds
+    while( (!done) && (!timedOut) && (bytes_read < 100) )
     {
-        digitalWrite(Pin13LED, HIGH);  // Show activity
-        Buffer[bytes_read++] = RS485Serial.read();
-        digitalWrite(Pin13LED, LOW);  // Show activity
+        // doing the looop this way to enable the addition of stats later
+        // i.e. did the application get a timeout on a packet read
+        if( ((millis() - startTime) > TimeoutMs) )
+        {
+            timedOut = true;
+            stats.pktRxTimeout += 1;
+        } else
+        {
+            if( (RS485Serial.available()) )  //TODO #define the Buffer length of 100
+            {
+                Buffer[bytes_read] = RS485Serial.read();
+
+                if( (!gotSTX) )
+                {
+                    if( (STX == Buffer[bytes_read]) )
+                    {
+                        // TODO: restart startTime here, give more time to get the packet?
+                        gotSTX = true;
+                        bytes_read += 1;
+                    } // else don't increment bytes_read effectively discarding this byte
+                } else
+                {
+                    if( (!gotETX) )
+                    {
+                        if( (ETX == Buffer[bytes_read]) )
+                        {
+                            done        = true;
+                            retVal      = true;
+                            stats.pktRx += 1;
+                        } 
+
+                        // this is a byte in the body of the frame
+                        bytes_read += 1;
+                    }
+                }
+            } else
+            {
+                // TODO: too long, too short ?
+                // no data available, wait a bit before checking again
+                delay(10);
+            }
+        }
     }
 
-    // TODO strengthen this
+    // always null terminate just in case we want to dump out for debug
     Buffer[bytes_read] = 0;
-    MePort_ReceiveByte((int8_t*)Buffer);
-    /*Serial.print("reived ");
+
+    // debug stuff
+    #ifdef _DEBUG_PKT_RX_
+    Serial.print("reived ");
     Serial.print(bytes_read, DEC);
-    Serial.println(" bytes"); */
+    Serial.println(" bytes");
+    #endif
+
+    if( (done) )
+    {
+        MePort_ReceiveByte((int8_t*)Buffer);
+    }
+
+
+    return(retVal);
 }
 
 
@@ -582,27 +648,7 @@ void meerstetterRS485::MePort_ReceiveByte(int8_t *arr)
 */
 void meerstetterRS485::MePort_SemaphorTake(uint32_t TimeoutMs)
 {
-        // polling for 5x the TimeoutMS - TODO : make this better
-        uint8_t count = 0;
-        bool data_ready = false;
-        
-        while( (!data_ready) && (10 > count++) )      // TODO : pound define or const the 10
-        {
-          if( (!RS485Serial.available()) )
-          {
-            //Serial.println("MePort_SemaphorTake no data on port...");
-            delay(TimeoutMs);
-          } else
-          {
-            //Serial.println("MePort_SemaphorTake finds data on port...");
-            data_ready = true;
-          }
-        }
-        
-        // TODO : tighten this up, just calling recvData here after waiting for data to arrive
-        // on the port
-        if( (data_ready) )
-          recvData();
+    recvData(TimeoutMs);
 }
 
 
