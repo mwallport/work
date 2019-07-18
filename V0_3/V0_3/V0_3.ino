@@ -7,7 +7,6 @@
 #include "V0_3.h"
 
 
-
 //
 // ---- globals ----
 //
@@ -51,7 +50,14 @@ char*   statusStrings[] = { // returned by getStatus used to update LCD, max 16 
         };
 
 
-void setup() {
+void setup()
+{
+#ifdef __DEBUG_VIA_SERIAL__
+Serial.begin(9600);
+debug dbg();
+#endif
+
+
 
     // initialize board pins
     pinMode(PIN_HW_ENABLE_n, OUTPUT);           // external LED .. ?
@@ -79,7 +85,11 @@ void setup() {
 
 
 void loop()
-{
+{ 
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     //
     // check for switch state on front of box - handle LED state
     //
@@ -108,6 +118,10 @@ void loop()
 
 void displayChillerAlertInit()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
@@ -120,6 +134,10 @@ void displayChillerAlertInit()
 
 void displayInit()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
@@ -133,6 +151,10 @@ void displayInit()
 
 void displayAlertInit()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
@@ -144,6 +166,10 @@ void displayAlertInit()
 
 void displayUpdate()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
   static boolean toggle = false;
 
 
@@ -181,6 +207,10 @@ void displayUpdate()
 
 void switchOps()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     // read the state of the switch into a local variable:
     int reading = digitalRead(SWITCH_PIN);
 
@@ -230,6 +260,10 @@ void switchOps()
 // all LCD calls are void, no way to tell if the LCD is up .. 
 bool initializeLCD()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
     lcd.display();
@@ -249,6 +283,10 @@ bool initializeLCD()
 //
 void updateLCDAndDie(char* displayStr)
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     lcd.display();
     lcd.clear();
     lcd.print(displayStr);
@@ -259,6 +297,10 @@ void updateLCDAndDie(char* displayStr)
 
 bool initializeSHTSensor()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     bool retVal = false;
 
 
@@ -280,6 +322,10 @@ bool initializeSHTSensor()
 //
 bool startUp()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     bool retVal = false;    
 
 
@@ -297,6 +343,10 @@ bool startUp()
 
 char* getStatus()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     char    buff[MAX_BUFF_LENGHT + 1];
     char*   pBuff = buff;
     uint8_t Instance    = 1;
@@ -390,6 +440,10 @@ char* getStatus()
 //
 void shutDown()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     char    buff[MAX_BUFF_LENGHT + 1];
     char*   pBuff = buff;
     uint8_t Instance    = 1;
@@ -416,6 +470,10 @@ void shutDown()
 
 void handleMessages()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     // TODO : create this
 }
 
@@ -427,6 +485,10 @@ void handleMessages()
 //
 bool initializeChiller()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     bool    retVal  = false;
 
 
@@ -455,6 +517,10 @@ bool initializeChiller()
 //
 bool startTECs()
 {
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
     bool    retVal      = true;
     uint8_t Instance    = 1;
     MeParLongFields FieldVal;
