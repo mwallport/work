@@ -14,14 +14,18 @@
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
+
 // temperature himidity sensor
 SHTSensor sht;
+
 
 // chiller communication - SoftwareSerial on pins 10 and 11 assuming RS232 module there
 RS232LSSeriesChiller chiller(10, 11, 9600, SERIAL_8N1);
 
+
 // meerstetter communication - Software Serial on pings 12 and 13 assuming RS485 module there
 meerstetterRS485 ms(12, 13);
+
 
 // LED and button states
 int ledState = LOW;                 // the current state of the output pin
@@ -30,16 +34,18 @@ int lastButtonState = LOW;          // the previous reading from the input pin
 unsigned long lastDebounceTime = 0; // the last time the output pin was toggled
 unsigned long debounceDelay = 50;   // the debounce time; increase if the output flickers
 
+
 // humidity sensor
 boolean isHumidityOk=true,
         isHumidityOkPrevious = isHumidityOk,
         fault = false;
 float   temp, humidity;     // temperature and humidity from SHT sensor
 
+
 // getStatus
 enum    { initStr, chillerStr, chillerComStr, TECStr, TECComStr, SHTSensorStr, SHTSensorComStr };
-char*   statusString;       // will point at one of the statusStrings
-char*   statusStrings[] = { // returned by getStatus used to update LCD, max 16 chars
+const char* statusString;       // will point at one of the statusStrings
+const char* statusStrings[] = { // returned by getStatus used to update LCD, max 16 chars
             "init(): fail"
             "Chiller fail",
             "Chiller com fail",
@@ -50,13 +56,17 @@ char*   statusStrings[] = { // returned by getStatus used to update LCD, max 16 
         };
 
 
+
+uint8_t msgCounter = 0; // used for testing, will pretend we're getting messages
+
+
+
 void setup()
 {
 #ifdef __DEBUG_VIA_SERIAL__
 Serial.begin(9600);
 debug dbg();
 #endif
-
 
 
     // initialize board pins
@@ -68,16 +78,36 @@ debug dbg();
 
 
     //
-    // if startUp fails, LCD will be updated and then we wait for someone to handle problem
+    // verify communication with the following  -  if all not available, fail and die
+    // - sensor
+    // - chiller
+    // - all TECs
+    // - LCD
     //
-    if(!startUp())
+    if(0 != (statusString = checkPresence()))
     {
         shutDown();
-        updateLCDAndDie(statusStrings[initStr]);
+        updateLCDAndDie(statusString);      // hold the last LCD message, not
+    }                                       // more processing, done, dead, kaput
+
+
+    //
+    // start the chiller and the SHT sensor and get the LCD ready
+    //
+    // TODO: always start the chiller or make this stateful, i.e. after switch on 
+    // or startup message received ?
+    //
+    //
+    // following call pauses 1.5 mins for chiller as required by documentation
+    if(0 != (statusString = initializeSystem()) )
+    {
+        shutDown();
+        updateLCDAndDie(statusString);
     }
 
 
-    //
+    // 
+    // all devices are present, chiller is running
     // update the LCD w/ himidity and temperature and enter main loop
     //
     displayInit();
@@ -91,9 +121,24 @@ debug dbg();
 #endif
 
     //
-    // check for switch state on front of box - handle LED state
+    // handleMsgs
+    // - switchOps() is a message - same as startUp
+    // - input from test PC is a message
+    //      - startUp - same as switchOps
+    //      - shutDown
+    //      - setTECTemp
+    //      - setChillerSetPoint
+    //      - setHumidityThreshold - eventually
+    //      - setTemperatureThreshold - eventually
     //
-    switchOps();
+    handleMsgs();
+    /*
+    if(0 != (statusString = handleMsgs()))
+    {
+        shutDown();
+        updateLCDAndDie(statusString);      // hold the last LCD message, not
+    }                                       // more processing, done, dead, kaput
+    */
   
     //
     // getStatus - check facilities and shutDown if needed and pause
@@ -101,7 +146,6 @@ debug dbg();
     // - check if chiller running
     // - check if TECs are running
     // - if any of these are bad, shutDown
-    // - function has no return value .. 
     //
     if(0 != (statusString = getStatus()))    // 0 means there is no failure
     {
@@ -109,10 +153,11 @@ debug dbg();
         updateLCDAndDie(statusString);      // hold the last LCD message, not
     }                                       // more processing, done, dead, kaput
 
-    // handle messages
-    handleMessages();
 
-    delay(5000);
+    //
+    // TODO: pause a little or just keep looping ?
+    //
+    delay(3000);
 }
 
 
@@ -258,7 +303,7 @@ debug dbg();
 
 
 // all LCD calls are void, no way to tell if the LCD is up .. 
-bool initializeLCD()
+bool startLCD()
 {
 #ifdef __DEBUG_VIA_SERIAL__
 debug dbg();
@@ -281,7 +326,7 @@ debug dbg();
 // print a message to the LCD and enter infinite loop (die)
 // does not return
 //
-void updateLCDAndDie(char* displayStr)
+void updateLCDAndDie(const char* displayStr)
 {
 #ifdef __DEBUG_VIA_SERIAL__
 debug dbg();
@@ -295,7 +340,7 @@ debug dbg();
 }
 
 
-bool initializeSHTSensor()
+bool startSHTSensor()
 {
 #ifdef __DEBUG_VIA_SERIAL__
 debug dbg();
@@ -307,7 +352,7 @@ debug dbg();
     Wire.begin();
 
     if( (sht.init()) && (sht.setAccuracy(SHTSensor::SHT_ACCURACY_MEDIUM)) ) // only supported by SHT3x
-            retVal  = true;
+        retVal  = true;
 
     return(retVal);
 }
@@ -329,19 +374,20 @@ debug dbg();
     bool retVal = false;    
 
 
-    // start up the LCD and SHT sensor
-    if( initializeLCD() && initializeSHTSensor() )
+    //
+    // start the chiller(should always be on)
+    // and start the TECs
+    //
+    if( (startChiller() && startTECs()) )
     {
-        // turn the chiller and TECs
-        if( initializeChiller() && startTECs() )
-            retVal = true;
+        retVal = true;
     }
     
     return(retVal);
 }
 
 
-char* getStatus()
+const char* getStatus()
 {
 #ifdef __DEBUG_VIA_SERIAL__
 debug dbg();
@@ -451,9 +497,12 @@ debug dbg();
 
     
     //
-    // turn off the chiller - not checking return value here as we are dying anyway ??
+    // turn off the chiller
     //
-    chiller.SetOnOff('0');  // 0 is off, 1 is on
+    for(uint8_t i = 0; i < MAX_SHUTDOWN_ATTEMPTS; i++)
+    {
+        chiller.StopChiller();
+    }
 
 
     //
@@ -461,21 +510,11 @@ debug dbg();
     //
     for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
     {
-        // try the Live On/Off command to enable the TECs .. ?
-        FieldVal = {1, 0, 0};
-        ms.MeCom_TEC_Oth_LiveEnable(Address, Instance, &FieldVal, MeSet);
+        ms.StopTEC(Address);
     }
 }
 
 
-void handleMessages()
-{
-#ifdef __DEBUG_VIA_SERIAL__
-debug dbg();
-#endif
-
-    // TODO : create this
-}
 
 
 // ----------------------------------------------------------
@@ -483,25 +522,23 @@ debug dbg();
 // turn on the chiller
 // return success if all these happen
 //
-bool initializeChiller()
+bool startChiller()
 {
 #ifdef __DEBUG_VIA_SERIAL__
 debug dbg();
 #endif
 
-    bool    retVal  = false;
+    bool retVal = true;
 
 
-    //
-    // executing these commands implicitly verify communication with the chiller
-    //
-    // turn off echo and turn off continuous data stream
-    //
-    if( chiller.SetCommandEcho('0') && (chiller.OutputContinuousDataStream('0')) )
+    if( !(chiller.StartChiller()) )
     {
-        // chiller is on-line, start the pump
-        if(chiller.SetOnOff('1'))
-            retVal  = true;
+        retVal  = false;
+
+        #ifdef __DEBUG_VIA_SERIAL__
+        Serial.print("__PRETTY_FUNCTION__ unable to start chiller ");
+        Serial.println(Address, DEC);
+        #endif
     }
 
     return(retVal);
@@ -522,8 +559,6 @@ debug dbg();
 #endif
 
     bool    retVal      = true;
-    uint8_t Instance    = 1;
-    MeParLongFields FieldVal;
 
 
     //
@@ -534,12 +569,183 @@ debug dbg();
     {
         // set to 2 to enable Live On/Off - otherwise its static on if we send 1 (i.e. always on) ??
         // try the Live On/Off command to enable the TECs .. ?
-        FieldVal = {0, 0, 0};  // send 0 to disable ..
-        ms.MeCom_TEC_Oth_LiveEnable(Address, Instance, &FieldVal, MeSet);
+        if( !(ms.StartTEC(Address)) )
+        {
+            retVal  = false;
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print("__PRETTY_FUNCTION__ unable to start TEC ");
+            Serial.println(Address, DEC);
+            #endif
+        }
     }
 
     return(retVal);
 }
 
 
+char* checkPresence()
+{
+    bool retVal  = false;     // always thinking positive ..
 
+
+    //
+    // check chiller is present
+    //
+    if( !(chiller.ChillerPresent(0)))
+    {
+        // return chiller-comm-bad string
+        return(statusStrings[chillerComStr]);
+    }
+
+
+    //
+    // check all TECs present
+    //
+    for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
+    {
+        if( !(ms.TECPresent(Address)) )
+        {
+            return(statusStrings[TECComStr]);
+        }
+    }
+
+
+    //
+    // check the SHT sensor is present
+    //
+    if( !(sht.init()) )
+    {
+        return(statusStrings[SHTSensorComStr]);
+    }
+
+    return(0);
+}
+
+
+char* initializeSystem()
+{
+    // this pauses 1.5 minutes per chiller documentation
+    if(!chiller.StartChiller())
+    {
+        return(statusStrings[chillerStr]);
+    }
+
+
+    // this will never fail
+    if(!startLCD())
+    {
+        return("LCD failure");  // hmm if LCD is not present, what to, but this will never fail
+    }
+
+
+    if(!startSHTSensor())
+    {
+        return(statusStrings[SHTSensorStr]);
+    }
+
+    return(0);
+}
+
+
+bool setTECTemp(float temp)
+{
+    bool retVal = true;
+    char    buff[MAX_BUFF_LENGHT + 1];
+    char*   pBuff = buff;
+    uint8_t Instance    = 1;
+    MeParFloatFields FieldVal;
+
+
+    for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
+    {
+        FieldVal = {temp, 0, 0};
+        // TODO: how to handle this if one meerstetter doesn't change temp
+        if( !(ms.MeCom_TEC_Tem_TargetObjectTemp(Address, Instance, &FieldVal, MeSet)) )
+            retVal = false;
+
+        // TODO: fetch the object temp to verify the setting
+    }
+
+    return(retVal);
+}
+
+
+bool setChillerSetPoint(char* temp)
+{
+    return(chiller.SetSetPoint(temp));
+}
+
+
+void handleMsgs()
+{
+#ifdef __DEBUG_VIA_SERIAL__
+debug dbg();
+#endif
+
+
+    // TODO: for simulated testing, remove
+    static uint8_t counter  = 0;    // for looping through the following temps
+    char* chillerSetPointTemps[] = {"-10", "-05", "+15", "+20"};  // -20 to +60C is valid
+    float TECTemps[] = {-21.5, -22.5, -23.5, -24.5};  // -20 to +60C is valid
+
+    //
+    // TODO: implement handleMsgs
+    //
+    // for now, just do switchOps() and simulate message handling
+    //
+    //switchOps();
+
+    //
+    // simulate messages using a counter
+    //
+    switch(msgCounter++)
+    {
+        case 0:     // startUp message
+        {
+            startUp();
+            /*
+            if( startUp() )
+            {
+                sendStartUpACK();
+            } else
+            {
+                sendStartUpNACK();
+            }
+            */
+            break;
+        };
+        case 1:     // shutDown message
+        {
+            shutDown();
+            break;
+        };
+        case 2:     // setTECTemp message
+        {
+            setTECTemp(TECTemps[counter]);
+            counter = (counter > 3 ? 0 : counter++);
+            break;
+        };
+        case 3:     // setChillerTemp message
+        {
+            setChillerSetPoint(chillerSetPointTemps[counter]);
+            counter = (counter > 3 ? 0 : counter++);
+            break;
+        };
+        /*
+        case 4:     // setSensorTemp message
+        {
+            break;
+        };
+        case 5:     // setSensorHumidity message
+        {
+            break;
+        };
+        */
+        default:
+        {
+            msgCounter = 0;
+            break;
+        }
+    }
+}
+    
