@@ -7,6 +7,7 @@
 #include "RS232LSSeriesChiller.h"
 
 
+
 // gobals
 //RS232LSSeriesChiller rs(15, 14, 9600, 1);  // assuming the mega, for Uno would be 0(rx), 1(tx)
                                            // and the config does not work, can't pass SERIAL_8N1
@@ -29,7 +30,7 @@ bool  RS232LSSeriesChiller::SetCommandEcho(char OnOff)
     Buff[count++]   = 'S';
     Buff[count++]   = 'E';
     Buff[count++]   = OnOff;
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -87,7 +88,7 @@ bool  RS232LSSeriesChiller::SetOnOff(char OnOff)
     Buff[count++]   = 'S';
     Buff[count++]   = 'O';
     Buff[count++]   = OnOff;
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -147,7 +148,7 @@ bool  RS232LSSeriesChiller::SetSetPoint(char* temp) // where temp is 3 ASCII dig
     Buff[count++]   = 'S';
     for(int i = 0; i < strlen(temp); i++)
         Buff[count++]   = temp[i];
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -168,6 +169,11 @@ bool  RS232LSSeriesChiller::SetSetPoint(char* temp) // where temp is 3 ASCII dig
             if( ('!' == Buff[0]) )
             {
                 Serial.println("SetSetPoint got !, success");
+
+                //
+                // TODO:  read the setpoint back and verify
+                //
+
                 retVal = true;
             } else if( ('?' == Buff[0]) )
                 Serial.println("SetSetPoint got ?, failed");
@@ -198,11 +204,11 @@ bool  RS232LSSeriesChiller::ReadSetPointTemperature(char** ppRetStr)
     // build command
     uint8_t count   = 0;
     bool retVal     = false;
-    char* pRetStr    = (ppRetStr ? 0 : *ppRetStr);
+    char* pRetStr   = (ppRetStr ? 0 : *ppRetStr);
 
     Buff[count++]   = 'R';
     Buff[count++]   = 'S';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -263,7 +269,7 @@ bool  RS232LSSeriesChiller::ReadTemperature(char** ppRetStr)
 
     Buff[count++]   = 'R';
     Buff[count++]   = 'T';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -324,7 +330,7 @@ bool  RS232LSSeriesChiller::ReadTemperatureUnits(char** ppRetStr)
 
     Buff[count++]   = 'R';
     Buff[count++]   = 'U';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -385,7 +391,7 @@ bool  RS232LSSeriesChiller::ReadStatus(char** ppRetStr)
 
     Buff[count++]   = 'R';
     Buff[count++]   = 'W';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -447,7 +453,7 @@ bool  RS232LSSeriesChiller::ReadCompressorDischargeTemperature(char** ppRetStr)
     Buff[count++]   = 'R';
     Buff[count++]   = 'U';
     Buff[count++]   = 'T';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -510,7 +516,7 @@ bool  RS232LSSeriesChiller::ReadFaultStatus(char** ppRetStr)
 
     Buff[count++]   = 'R';
     Buff[count++]   = 'F';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -573,7 +579,7 @@ bool  RS232LSSeriesChiller::ReadEvaporatorInletTemperature(char** ppRetStr)
     Buff[count++]   = 'R';
     Buff[count++]   = 'E';
     Buff[count++]   = 'I';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -635,7 +641,7 @@ bool  RS232LSSeriesChiller::ReadEvaporatorOutletTemperature(char** ppRetStr)
     Buff[count++]   = 'R';
     Buff[count++]   = 'E';
     Buff[count++]   = 'O';
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -699,7 +705,7 @@ bool  RS232LSSeriesChiller::OutputContinuousDataStream(char OnOff)
     Buff[count++]   = 'R';
     Buff[count++]   = 'D';
     Buff[count++]   = OnOff;
-    Buff[count++]   = '/r';
+    Buff[count++]   = '\r';
     Buff[count++]   = '\0';
     
     // uses class' Buff which was set up above
@@ -749,15 +755,17 @@ bool RS232LSSeriesChiller::RS232LSSeriesChiller::TxCommand()
 
 
     // class member Buff is filled in by the member functions
-    lenWritten = RS232Soft.write(Buff);
+    lenWritten = Serial2.write(Buff);
 
     if( (lenWritten != strlen(Buff)) )
     {
-        Serial.println("RS232LSSeriesChiller::TxCommand failed");
+        Serial.println("__PRETTY_FUNCTION__ failed");
         retVal  = false;
+    #ifdef __DEBUG_PKT_TX__
     } else
     {
         Serial.println("RS232LSSeriesChiller::TxCommand success");
+    #endif
     }
     
     return(retVal);
@@ -775,6 +783,7 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
     const uint8_t STX       = '!';
     const uint8_t ETX       = '\r';
     unsigned long startTime = millis();
+    char* pBuff             = (0 == retBuff ? 0 : *retBuff);
 
 
     // try to read a packet for a total of TimeoutMs milliseconds
@@ -785,9 +794,9 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
             timedOut = true;
         } else
         {
-            if( (RS232Soft.available()) )
+            if( (Serial2.available()) )
             {
-                Buff[bytes_read] = RS232Soft.read();
+                Buff[bytes_read] = Serial2.read();
 
                 if( (!gotSTX) )
                 {
@@ -824,14 +833,14 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
     Buff[bytes_read] = 0;
 
     // debug stuff
-    #ifdef _DEBUG_PKT_RX_
-    Serial.print("reived ");
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print("__PRETTY_FUNCTION__ received ");
     Serial.print(bytes_read, DEC);
     Serial.println(" bytes");
     #endif
 
-    if( (0 != retBuff) )
-        memcpy(*retBuff, Buff, bytes_read);
+    if( (0 != pBuff) )
+        memcpy(pBuff, Buff, bytes_read);
 
     return(retVal);
 }
@@ -843,12 +852,133 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
 //for modes see : https://www.arduino.cc/reference/en/language/functions/communication/serial/begin/
 //
 RS232LSSeriesChiller::RS232LSSeriesChiller(uint32_t SSerialRX, uint32_t SSerialTX, uint32_t Speed, uint32_t Config)
- : RS232Soft(SSerialRX, SSerialTX)
 {
     // set the configuration upon start
-    RS232Soft.begin(Speed);  // can't supply the config parameter, default is 8N1 though
+    Serial2.begin(Speed);  // can't supply the config parameter, default is 8N1 though
 }
     
+
 RS232LSSeriesChiller::~RS232LSSeriesChiller() { };
 
+
+bool RS232LSSeriesChiller::StartChiller()
+{
+    bool    retVal  = false;
+
+
+    for(uint8_t i = 0; i < MAX_STARTUP_ATTEMPTS; i++)
+    {
+        //
+        // turn off echo and turn off continuous data stream
+        //
+        if(SetCommandEcho('0') && (OutputContinuousDataStream('0')) )
+        {
+            // chiller is on-line, start the pump
+            if(SetOnOff('1'))
+            {
+                //
+                // documentation for the LS Series reads the pump will start 90 seconds after startup
+                // .. so lets wait ??
+                //
+                #ifdef __DEBUG_LSSERIES_OPERATION__
+                Serial.println("__PRETTY_FUNCTION__ sleeping 95 seconds while chiller starts");
+                #endif
+                delay(95000);
+    
+                //
+                // verify the chiller status is 'Running'
+                //
+                if( (ChillerRunning()) )
+                    retVal = true;
+    
+            #ifdef __DEBUG_LSSERIES_OPERATION__
+            } else
+            {
+                Serial.println("__PRETTY_FUNCTION__ unable to SetOnOff");
+            #endif
+            }
+    
+        #ifdef __DEBUG_LSSERIES_OPERATION__
+        } else
+        {
+            Serial.println("__PRETTY_FUNCTION__ unable to stop echo and cmd stream");
+        #endif
+        }
+    }
+
+    return(retVal);
+}
+
+
+bool RS232LSSeriesChiller::ChillerRunning()
+{
+    bool    retVal  = false;
+    char    buff[MAX_BUFF_LENGTH + 1];
+    char*   pBuff = buff;
+
+
+    memset(buff, '\0', MAX_BUFF_LENGTH + 1);
+    if(ReadStatus(&pBuff))
+    {
+        if('1' == buff[0])  // 1 is on, 0 is off
+            retVal  = true;
+        #ifdef __DEBUG_LSSERIES_OPERATION__
+        else
+        {
+            Serial.print("__PRETTY_FUNCTION__ ReadStatus got ");
+            Serial.println(buff[0]);
+        }
+        #endif
+    #ifdef __DEBUG_LSSERIES_OPERATION__
+    } else
+    {
+        Serial.println("__PRETTY_FUNCTION__ unable to ReadStatus");
+    #endif
+    }
+
+    return(retVal);
+}
+
+
+bool RS232LSSeriesChiller::StopChiller()
+{
+    bool    retVal  = false;
+
+
+    for(uint8_t i = 0; i < MAX_SHUTDOWN_ATTEMPTS; i++)
+    {
+        if( (SetOnOff('0')) )  // 0 is off, 1 is on
+        {
+            // TODO : test to find out whether the following delay is needed
+            // or is too long or too short
+            delay(5000);
+
+            if( !(ChillerRunning()) )
+                retVal = true;
+
+        #ifdef __DEBUG_LSSERIES_OPERATION__
+        } else
+        {
+            Serial.println("__PRETTY_FUNCTION__ unable to SetOnOff");
+        #endif
+        }
+    }
+
+    return(retVal);
+}
+
+
+bool RS232LSSeriesChiller::ChillerPresent(char** ppRetStr)
+{
+    bool    retVal    = false;
+    char*   pRetStr   = (ppRetStr ? 0 : *ppRetStr);
+
+
+    if( (ReadStatus(&pRetStr)) )
+    {
+        retVal = true;
+    }
+
+    return(retVal);
+}
 

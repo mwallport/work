@@ -8,6 +8,10 @@
    #endif
 #include <SoftwareSerial.h>
 
+#define MAX_STARTUP_ATTEMPTS 1
+#define MAX_SHUTDOWN_ATTEMPTS 1
+
+#define __DEBUG_LSSERIES_OPERATION__
 
 const uint8_t MAX_BUFF_LENGTH   = 10;
 
@@ -18,6 +22,17 @@ class RS232LSSeriesChiller
     RS232LSSeriesChiller(uint32_t, uint32_t, uint32_t, uint32_t);
     virtual ~RS232LSSeriesChiller();
     
+    //
+    // helper functions, groups of commands
+    //
+    bool  StartChiller();
+    bool  StopChiller();
+    bool  ChillerRunning();
+    bool  ChillerPresent(char**);
+
+    //
+    // individual commands
+    //
     bool  SetCommandEcho(char);
     bool  SetOnOff(char);
     bool  SetSetPoint(char*);
@@ -39,7 +54,7 @@ class RS232LSSeriesChiller
     bool    RxResponse(char**, uint32_t TimeoutMs);
     char    Buff[MAX_BUFF_LENGTH + 1];
     
-    SoftwareSerial RS232Soft;
+    //SoftwareSerial RS232Soft <-- not using this, using Serial2 on the MAXI board
 };
 
 #endif
