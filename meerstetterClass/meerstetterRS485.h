@@ -124,6 +124,12 @@ class meerstetterRS485
     static char Buffer[MEPORT_MAX_TX_BUF_SIZE];
     static int Ctr;
 
+    // helper functions - as of 7/22 assume three TECs addresses, 2,3, and 4.
+    bool StartTEC(uint8_t);
+    bool StopTEC(uint8_t);
+    bool TECRunning(uint8_t);
+    bool TECPresent(uint8_t);
+
     protected:
     SoftwareSerial  RS485Serial;
     statsBlock      stats;
