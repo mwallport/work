@@ -99,6 +99,8 @@ debug dbg();
     char* pBuff             = (0 == retBuff ? 0 : *retBuff);
 
 
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+
     // try to read a packet for a total of TimeoutMs milliseconds
     while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
     {
@@ -193,6 +195,7 @@ debug dbg();
     //
     // build the Verify command
     //
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
     Buff[count++] = '[';
     Buff[count++] = 'M';
     Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -314,6 +317,7 @@ debug dbg();
     //
     // master: [M01L0F********1B\r
     // slave:  [S01L17F4484E20F4484E2045\r
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
     Buff[count++] = '[';
     Buff[count++] = 'M';
     Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -629,6 +633,7 @@ bool huber::getChillerStatus()
     // send '*' for temp control, alarm query, and set point - just
     // pick up the values, update the huberData structure
     //
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
     Buff[count++] = '[';
     Buff[count++] = 'M';
     Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -694,6 +699,7 @@ debug dbg();
     //
     // enable internal temperature control
     //
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
     Buff[count++] = '[';
     Buff[count++] = 'M';
     Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -728,6 +734,8 @@ debug dbg();
         //
         // switch circulation on
         //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+        count = 0;
         Buff[count++] = '[';
         Buff[count++] = 'M';
         Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -797,13 +805,37 @@ debug dbg();
         return(false);
     }
     
-    //
-    // check the huberData structure, it is updated on every
-    // call to sendGeneralCommand
-    //
-    if( ('O' != huberData.tempCtrlMode[0]) )
-        retVal = true;
 
+    //
+    // fetch the chiller's status and update the huberData structure
+    //
+    if( (getChillerStatus()) )
+    {
+        //
+        // check the huberData structure, it is updated on every
+        // call to sendGeneralCommand
+        //
+        if( ('O' != huberData.tempCtrlMode[0]) )
+            retVal = true;
+        #ifdef __DEBUG_HUBER__
+        else
+        {
+            Serial.print("ERROR :: ChillerRunning fail, got mode: ");
+            Serial.println(huberData.tempCtrlMode);
+        }
+        #endif
+    #ifdef __DEBUG_HUBER__
+    } else
+    {
+        Serial.println("ChillerRunning unable to getChillerStatus()");
+    #endif
+    }
+
+    
+    #ifdef __DEBUG_HUBER__
+    Serial.print("ChillerRunning returning ");
+    Serial.println(retVal, DEC);
+    #endif
     return(retVal);
 }
 
@@ -818,15 +850,6 @@ debug dbg();
     uint8_t count   = 0;
 
 
-    if( !(chillerInitialized) ) 
-    {
-        // 
-        // must execute InitChiller 1st
-        // 
-        Serial.println("ERROR : must InitChiller before starting chiller");
-        return(false);
-    }
-    
     //
     // update chillerRunning - assuming the G command will work below
     //
@@ -836,6 +859,7 @@ debug dbg();
     //
     // turn temperature control off
     //
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
     Buff[count++] = '[';
     Buff[count++] = 'M';
     Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -892,16 +916,6 @@ debug dbg();
     bool    retVal    = false;
 
 
-
-    if( !(chillerInitialized) ) 
-    {
-        // 
-        // must execute InitChiller 1st
-        // 
-        Serial.println("ERROR : must InitChiller before starting chiller");
-        return(false);
-    }
-    
     //
     // sendVerifyCommand()
     //
@@ -927,6 +941,7 @@ debug dbg();
     //
     // use sendGeneralCommand
     //
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
     Buff[count++] = '[';
     Buff[count++] = 'M';
     Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -996,7 +1011,7 @@ void huber::setLengthAndCheckSum()
     // convert integer to char[], chkSumIndex is buffLen - chkSum len - '\r'
     //
     chkSumIndex = (strlen(Buff) > 3 ? strlen(Buff) - 3 : 0);
-    sprintf(intStr, "%02d", chkSumIndex);
+    sprintf(intStr, "%02X", chkSumIndex);
 
 
     #ifdef __DEBUG_HUBER__
@@ -1029,7 +1044,7 @@ void huber::setLengthAndCheckSum()
     // convert chkSum to a string
     //
     memset(reinterpret_cast<void*>(intStr), '\0', 5);
-    sprintf(intStr, "%04x", chkSum);  // a hex number you numb-skull !
+    sprintf(intStr, "%04X", chkSum);  // a hex number you numb-skull !
 
     #ifdef __DEBUG_HUBER__
     Serial.print("setLengthAndCheckSum setting chkSum to lower byte of: 0x");
@@ -1080,7 +1095,7 @@ bool huber::verifyLengthAndCheckSum()
     //
     // pick up length from the packet bytes - it is hex
     //
-    sscanf(reinterpret_cast<char*>(&Buff[LENGTH_INDEX]), "%2hx", &packetLength);
+    sscanf(reinterpret_cast<char*>(&Buff[LENGTH_INDEX]), "%2hX", &packetLength);
 
     #ifdef __DEBUG_HUBER__
     Serial.print(__PRETTY_FUNCTION__);
@@ -1123,29 +1138,29 @@ bool huber::verifyLengthAndCheckSum()
     //
     // convert the checksum from the packet to an integer, this is the lower byte of a word value
     //
-    sscanf(reinterpret_cast<char*>(&Buff[chkSumIndex]), "%02hx", &packetChkSum);
+    sscanf(reinterpret_cast<char*>(&Buff[chkSumIndex]), "%02hX", &packetChkSum);
 
     //
     // crap, I don't know if the processor is big-endian or little endian ..
     // so, take the long way, convert to string, take the lower string nibble
     //
     memset(reinterpret_cast<void*>(intStr), '\0', 5);
-    sprintf(intStr, "%04x", chkSum);
+    sprintf(intStr, "%04X", chkSum);
     
     //
     // using 0 extended sprintf, always take the lower two chars as calc'ed check sum
     //
-    sscanf(reinterpret_cast<char*>(&intStr[2]), "%2hx", &chkSum);
+    sscanf(reinterpret_cast<char*>(&intStr[2]), "%2hX", &chkSum);
 
 /*
     if( (chkSum < 0x0100) )
     {
         // take array locations 0 and 1
-        sscanf(reinterpret_cast<char*>(intStr), "%2hx", &chkSum);
+        sscanf(reinterpret_cast<char*>(intStr), "%2hX", &chkSum);
     } else
     {
         // number is big, take the the array locations 2 and 3, this is the low nibble
-        sscanf(reinterpret_cast<char*>(&intStr[2]), "%2hx", &chkSum);
+        sscanf(reinterpret_cast<char*>(&intStr[2]), "%2hX", &chkSum);
     }
 */
 

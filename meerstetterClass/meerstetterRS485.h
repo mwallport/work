@@ -1,12 +1,22 @@
 #ifndef __MEERSTETTER__
 #define __MEERSTETTER__
+/*
  #if defined(ARDUINO) && ARDUINO >= 100
       #include "Arduino.h"
     #else
       #include "WProgram.h"
     #endif
+*/
 #include <stdint.h>
 #include <SoftwareSerial.h>
+
+
+
+#define __DEBUG_PKT_TX__
+#define __DEBUG_PKT_RX__
+#define __DEBUG_MS_VIA_SERIAL__
+
+
 
 //This TX Buffer is only used if the Physical Communication Interface receives a string.
 //If every byte is directly forwarded to the Interface, this buffer is not needed
@@ -131,7 +141,7 @@ class meerstetterRS485
     bool TECPresent(uint8_t);
 
     protected:
-    SoftwareSerial  RS485Serial;
+    //SoftwareSerial  RS485Serial;
     statsBlock      stats;
     struct MeFrame_RcvFrameS MeFrame_RcvFrame;
     int8_t *MeInt_QueryRcvPayload;

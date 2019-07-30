@@ -1,8 +1,13 @@
- #if defined(ARDUINO) && ARDUINO >= 100
+ /*#if defined(ARDUINO) && ARDUINO >= 100
       #include "Arduino.h"
     #else
       #include "WProgram.h"
     #endif
+*/
+#include <SPI.h>
+#include <Controllino.h>
+#include <SoftwareSerial.h>
+#include <SPI.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -63,11 +68,15 @@ int meerstetterRS485::Ctr;
 
 // constructor
 meerstetterRS485::meerstetterRS485(uint32_t _SSerialRX, uint32_t _SSerialTX)
- : RS485Serial(_SSerialRX, _SSerialTX)
+// : RS485Serial(_SSerialRX, _SSerialTX)
 {
     memset(reinterpret_cast<void*>(&stats), '\0', sizeof(stats));
     MeInt_QueryRcvPayload = MeFrame_RcvFrame.Payload;
-    RS485Serial.begin(9600);
+    //RS485Serial.begin(9600);
+
+    Controllino_RS485Init();
+    Serial3.begin(9600);
+    Controllino_RS485RxEnable();
 }
 
 
@@ -82,7 +91,12 @@ void meerstetterRS485::ComPort_Send(char *in)
     int len = strlen(in);
 
 
-    size = RS485Serial.write(in);
+    //size = RS485Serial.write(in);
+    //RS485Serial.flush();
+    Controllino_RS485TxEnable();
+    size = Serial3.write(in);
+    Serial3.flush();
+    Controllino_RS485RxEnable();
 
     if(size != len)
     {
@@ -114,6 +128,13 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
     const uint8_t ETX       = '\r';
     unsigned long startTime = millis();
 
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print("before loop timedOut is: ");
+    Serial.println(timedOut, DEC);
+    Serial.flush();
+    #endif
+
         
     // try to read a packet for a total of TimeoutMs milliseconds
     while( (!done) && (!timedOut) && (bytes_read < 100) )
@@ -122,13 +143,17 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
         // i.e. did the application get a timeout on a packet read
         if( ((millis() - startTime) > TimeoutMs) )
         {
+            // TODO: testing - never come in here .. hence the false above
             timedOut = true;
             stats.pktRxTimeout += 1;
         } else
         {
-            if( (RS485Serial.available()) )  //TODO #define the Buffer length of 100
+            Controllino_RS485RxEnable();
+            //if( (RS485Serial.available()) )  //TODO #define the Buffer length of 100
+            if( (Serial3.available()) )  //TODO #define the Buffer length of 100
             {
-                Buffer[bytes_read] = RS485Serial.read();
+                //Buffer[bytes_read] = RS485Serial.read();
+                Buffer[bytes_read] = Serial3.read();
 
                 if( (!gotSTX) )
                 {
@@ -167,9 +192,12 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
 
     // debug stuff
     #ifdef __DEBUG_PKT_RX__
-    Serial.print("__PRETTY_FUNCTION__ reived ");
+    Serial.print("__PRETTY_FUNCTION__ received ");
     Serial.print(bytes_read, DEC);
     Serial.println(" bytes");
+    Serial.print("timedOut is: ");
+    Serial.println(timedOut, DEC);
+    Serial.flush();
     #endif
 
     if( (done) )
@@ -1042,7 +1070,8 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
     FieldVal = {0, 0, 0};
     if( (MeCom_COM_DeviceStatus(Address, &FieldVal, MeGet)) )
     {
-        if( (2 == FieldVal.Value) )
+        //if( (2 == FieldVal.Value) )  TODO: figure out the TEC running state
+        if( (1 == FieldVal.Value) )
         {
             retVal  = true;
         #ifdef __DEBUG_MS_VIA_SERIAL__
