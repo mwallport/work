@@ -63,7 +63,9 @@ debug dbg();
 
     if( (lenWritten != strlen(Buff)) )
     {
+        #ifdef __DEBUG_HUBER_ERROR__
         Serial.println("TxCommand failed");
+        #endif
         retVal  = false;
     #ifdef __DEBUG_PKT_TX__
     } else
@@ -157,18 +159,24 @@ debug dbg();
 
     // debug stuff
     #ifdef __DEBUG_PKT_RX__
-    Serial.print("RxResponse received ");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
     Serial.flush();
     Serial.print(bytes_read, DEC);
     Serial.flush();
     Serial.println(" bytes");
     Serial.flush();
-    Serial.print("got: ");
-    Serial.flush();
     Serial.println(Buff);
     Serial.flush();
-    if( !(retVal) ) Serial.println("RxResponse found bad formatted packet");
-    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("RxResponse found bad formatted packet");
+        Serial.flush();
+    }
     #endif
 
     if( (0 != pBuff) )
@@ -213,8 +221,14 @@ debug dbg();
     //
     setLengthAndCheckSum();
 
-    #ifdef __DEBUG_HUBER__
-    Serial.print("sendVerifyCommand is sending: ");
+    #ifdef __DEBUG_PKT_TX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" sending ");
+    Serial.flush();
+    Serial.print(count, DEC);
+    Serial.flush();
+    Serial.println(" bytes");
     Serial.flush();
     Serial.println(Buff);
     Serial.flush();
@@ -267,25 +281,25 @@ debug dbg();
 
                     retVal  = true;
     
-                #ifdef __DEBUG_HUBER__
+                #ifdef __DEBUG_HUBER_ERROR__
                 } else
                 {
                     Serial.println("ERROR: sendVerifyCommand fail, did not get \'V\'");
                 #endif
                 }
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR__
             } else
             {
                 Serial.println("ERROR: sendVerifyCommand Rx'ed Verify response packet is too short");
             #endif
             }
-        #ifdef __DEBUG_HUBER__
+        #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
             Serial.println("ERROR: sendVerifyCommand RxResponse failed");
         #endif
         }
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.print(__PRETTY_FUNCTION__);
@@ -343,7 +357,7 @@ debug dbg();
     //
     setLengthAndCheckSum();
 
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_PKT_TX__
     Serial.print("sendLimitCommand is sending: ");
     Serial.flush();
     Serial.println(Buff);
@@ -404,25 +418,25 @@ debug dbg();
 
                     retVal  = true;
     
-                #ifdef __DEBUG_HUBER__
+                #ifdef __DEBUG_HUBER_ERROR__
                 } else
                 {
                     Serial.println("ERROR: sendLimitCommand fail, did not get \'L\'");
                 #endif
                 }
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR__
             } else
             {
                 Serial.println("ERROR: sendLimitCommand Rx'ed Limit response packet is too short");
             #endif
             }
-        #ifdef __DEBUG_HUBER__
+        #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
             Serial.println("ERROR: sendLimitCommand RxResponse failed");
         #endif
         }
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.print(__PRETTY_FUNCTION__);
@@ -452,7 +466,7 @@ debug dbg();
     uint8_t count       = 0;
 
 
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_PKT_TX__
     Serial.print("sendGeneralCommand is sending: ");
     Serial.flush();
     Serial.println(Buff);
@@ -546,25 +560,25 @@ debug dbg();
 
                     retVal  = true;
     
-                #ifdef __DEBUG_HUBER__
+                #ifdef __DEBUG_HUBER_ERROR__
                 } else
                 {
                     Serial.println("ERROR: sendGeneralCommand fail, did not get \'G\'");
                 #endif
                 }
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR__
             } else
             {
                 Serial.println("ERROR: sendGeneralCommand Rx'ed Limit response packet is too short");
             #endif
             }
-        #ifdef __DEBUG_HUBER__
+        #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
             Serial.println("ERROR: sendGeneralCommand RxResponse failed");
         #endif
         }
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.print(__PRETTY_FUNCTION__);
@@ -591,7 +605,7 @@ debug dbg();
     {
         if( !(sendVerifyCommand()) )
         {
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR_
             Serial.println("InitChiller unable to sendVerifyCommand");
             #endif
             return(false);
@@ -599,7 +613,7 @@ debug dbg();
 
         if( !(sendLimitCommand()) )
         {
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR_
             Serial.println("InitChiller unable to sendLimitCommand");
             #endif
             return(false);
@@ -607,7 +621,7 @@ debug dbg();
 
         if( !(getChillerStatus()) )  // general command, all '*'
         {
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR_
             Serial.println("InitChiller unable to getChillerStatus");
             #endif
             return(false);
@@ -657,7 +671,7 @@ bool huber::getChillerStatus()
     if( (sendGeneralCommand()) )
     {
         retVal = true;
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR_
     } else
     {
         Serial.println("ERROR: getChillerStatus failed sendGeneralCommand");
@@ -688,7 +702,9 @@ debug dbg();
         // 
         // must execute InitChiller 1st
         // 
+        #ifdef __DEBUG_HUBRER_ERROR__
         Serial.println("ERROR : must InitChiller before starting chiller");
+        #endif
         return(false);
     }
     
@@ -762,21 +778,21 @@ debug dbg();
             //  TODO : test with real Huber chiller !
             // check the huberData structure, it was updated by the sendGeneralCommand
             // 
-            #ifdef __DEBUG_HUBER__
+            #ifdef __DEBUG_HUBER_ERROR__
             if( ('C' == huberData.tempCtrlMode[0]) )
                 Serial.println("StartChiller found \'C\' assuming circulation is on");
             #endif
 
             retVal  = true;
 
-        #ifdef __DEBUG_HUBER__
+        #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
             Serial.println("StartChiller failed sendGeneralCommand to enable circulation");
         #endif
         }
 
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.println("StartChiller failed sendGeneralCommand for internal temp ctrl");
@@ -801,7 +817,9 @@ debug dbg();
         // 
         // must execute InitChiller 1st
         // 
+        #ifdef __DEBUG_HUBER_ERROR__
         Serial.println("ERROR : must InitChiller before starting chiller");
+        #endif
         return(false);
     }
     
@@ -817,14 +835,14 @@ debug dbg();
         //
         if( ('O' != huberData.tempCtrlMode[0]) )
             retVal = true;
-        #ifdef __DEBUG_HUBER__
+        #ifdef __DEBUG_HUBER_ERROR__
         else
         {
             Serial.print("ERROR :: ChillerRunning fail, got mode: ");
             Serial.println(huberData.tempCtrlMode);
         }
         #endif
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.println("ChillerRunning unable to getChillerStatus()");
@@ -889,14 +907,14 @@ debug dbg();
         if( ('O' == huberData.tempCtrlMode[0]) )
         {
             retVal = true;
-        #ifdef __DEBUG_HUBER__
+        #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
             Serial.println("StopChiller did not found \'O\' assuming chiller is still running");
         #endif
         }
 
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.println("StopChiller failed sendGeneralCommand for internal temp ctrl");
@@ -970,7 +988,14 @@ debug dbg();
         // 
         if( (0 == strncmp(huberData.setPointTemp, pSetPoint, MAX_SET_POINT_LENGTH)) )
         {
+            #ifdef __DEBUG_HUBER2__
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.print(" SetSetPoint success, changed to 0x");
+            Serial.println(huberData.setPointTemp);
+            #endif
+
             retVal = true;
+
         #ifdef __DEBUG_HUBER__
         } else
         {
@@ -979,7 +1004,7 @@ debug dbg();
         #endif
         }
 
-    #ifdef __DEBUG_HUBER__
+    #ifdef __DEBUG_HUBER_ERROR__
     } else
     {
         Serial.print("ERROR: SetSetPoint failed, sendGeneralCommand failed");

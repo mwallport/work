@@ -35,11 +35,11 @@ unsigned long lastDebounceTime = 0; // the last time the output pin was toggled
 unsigned long debounceDelay = 50;   // the debounce time; increase if the output flickers
 
 
-//
-// used for testing
-//
-uint8_t msgCounter = 0;
 
+//
+// for testing
+//
+int msgCounter = 0;
 
 
 void setup()
@@ -48,10 +48,11 @@ void setup()
     Serial.begin(9600);
     #endif
 
+    //
+    // TODO: remove
+    //
     delay(10000);
 
-    Serial.println("in setup()...");
-    Serial.flush();
 
     // initialize board pins
 
@@ -62,9 +63,12 @@ void setup()
     digitalWrite(PIN_HW_ENABLE_n, ledState);    // turn off external LED
 
 
-    Serial.println("doing updateLCD(initializing)");
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.println(" doing updateLCD(initializing)");
     Serial.flush();
-    delay(1000);
+    #endif
     
     //
     // paint 'Initializing' on the LCD
@@ -75,37 +79,48 @@ void setup()
     //
     // verify communication with all devices
     //
-    Serial.println("doing allDevicesPresent()");
-    delay(1000);
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.println(" checking allDevicesPresent()");
+    #endif
     
     if( !(allDevicesPresent()) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
-        Serial.println("all devices not present, shutting down");
+        Serial.println("---------------------------------------");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println(" all devices not present, shutting down");
         #endif
 
         //
-        // stop the chiller and the TECs
+        // stop the chiller and the TECs and die
         //
-        Serial.println("doing shutDown()");
         shutDown();
 
         //
-        // updateLCDAndDie goes into infinite loop, call this last
+        // TODO: die like this ?
+        // update the LCD w/ "ALL DEVICES NOT PRESET", then die ?
         //
-        Serial.println("doing updateLCDAndDie");
         updateLCDAndDie(lcd_notAllDevicesPresent);
+
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.println("all devices present");
+        Serial.println("---------------------------------------");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println(" all devices present");
     #endif
     }
 
     //
     // always start the chiller
     //
-    Serial.println("doing startChiller");
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.println(" doing startChiller");
+    #endif
     if( !(startChiller()) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
@@ -126,7 +141,11 @@ void setup()
 
 void loop()
 { 
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);
     Serial.println("top of loop()");
+    #endif
 
 
     //
@@ -135,7 +154,6 @@ void loop()
     // the lcd_humidityThreshold delays for 3 seconds, use this
     // delay to throttle the loop() - and always show humidity
     //
-    Serial.println("doing updateLCD(lcd_humidityThreshold)");
     updateLCD(lcd_humidityThreshold);   
 
 
@@ -143,18 +161,24 @@ void loop()
     // getStatus will update LCD w/ what is 'bad', then shutDownAndDie()
     // will loop forever leaving the LCD update with what is 'bad'
     //
-    Serial.println("doing getStatus");
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.println(" doing getStatus");
+    #endif
     if( !(getStatus()) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
-        Serial.println("got bad status, shutting down");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println(" got bad status, shutting down");
         #endif
 
         shutDownAndDie();
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.println("getStatus is good");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println(" getStatus is good");
     #endif
     }
 
@@ -164,7 +188,11 @@ void loop()
     // - the switch
     // - the controlling PC software
     //
-    Serial.println("doing handlMsgs()");
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.println(" doing handlMsgs()");
+    #endif
     handleMsgs();
 
 
@@ -206,6 +234,11 @@ void displayAlertInit()
 int8_t switchOps()
 {
     int8_t retVal   = 0;
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
 
     // TODO: get rid of this
     return(retVal);
@@ -266,6 +299,11 @@ int8_t switchOps()
 // all LCD calls are void, no way to tell if the LCD is up .. 
 bool startLCD()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO:put this back
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
@@ -287,6 +325,11 @@ bool startLCD()
 //
 void updateLCD(uint32_t facesIndex)
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     //
     // call the LCD display function
     //
@@ -297,6 +340,11 @@ void updateLCD(uint32_t facesIndex)
 
 void updateLCDAndDie(uint32_t facesIndex)
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     //
     // update the LCD screen
     //
@@ -313,6 +361,12 @@ void updateLCDAndDie(uint32_t facesIndex)
 bool startSHTSensor()
 {
     bool retVal = false;
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
 
 /* TODO: put this back
 
@@ -339,12 +393,17 @@ bool startUp()
 {
     bool retVal = false;    
 
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
 
     //
-    // - chiller is always on
+    // TODO: chiller is always on - but send the command anyway
     // - start the TECs
     //
-    if( (startTECs()) )
+    if( (startChiller()) && (startTECs()) )
     {
         retVal = true;
     }
@@ -365,6 +424,11 @@ bool startUp()
 //
 bool getStatus()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     //
     // check chiller status is running
     //
@@ -430,6 +494,11 @@ bool getStatus()
 // do not update the LCD
 void shutDownAndDie()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     shutDown();
 
     // loop forever
@@ -440,6 +509,11 @@ void shutDownAndDie()
 // do not update the LCD
 void shutDown()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     char    buff[MAX_BUFF_LENGHT + 1];
     char*   pBuff = buff;
     uint8_t Instance    = 1;
@@ -463,7 +537,11 @@ void shutDown()
         ms.StopTEC(Address);
     }
 
+    //
     // set the LED:
+    //
+    // TODO: switchOps handling - switch off the switch ?
+    //
     digitalWrite(LED_BUILTIN, ledState);
     digitalWrite(PIN_HW_ENABLE_n, ledState);
 }
@@ -478,6 +556,11 @@ void shutDown()
 //
 bool startChiller()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     bool retVal = true;
 
 
@@ -504,6 +587,11 @@ bool startChiller()
 bool startTECs()
 {
     bool    retVal      = true;
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
 
 
     //
@@ -534,6 +622,11 @@ bool startTECs()
 bool allDevicesPresent()
 {
     bool retVal  = true;
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
 
 
     //
@@ -594,6 +687,9 @@ bool allDevicesPresent()
 }
 
 
+//
+// TODO:  move this meetstetter stuff into the meerstetter library
+//
 bool setTECTemp(float temp)
 {
     bool retVal = true;
@@ -602,15 +698,94 @@ bool setTECTemp(float temp)
     uint8_t Instance    = 1;
     MeParFloatFields FieldVal;
 
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
 
     for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
     {
         FieldVal = {temp, 0, 0};
+
+        //
+        // TODO:  move this meetstetter stuff into the meerstetter library
+        //
+
         // TODO: how to handle this if one meerstetter doesn't change temp
         if( !(ms.MeCom_TEC_Tem_TargetObjectTemp(Address, Instance, &FieldVal, MeSet)) )
-            retVal = false;
+        {
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.flush();
+            Serial.print(" failed to MeSet for Address ");
+            Serial.flush();
+            Serial.println(Address, HEX);
+            Serial.flush();
+            #endif
 
-        // TODO: fetch the object temp to verify the setting
+            retVal = false;
+        } else
+        {
+            //
+            // check what was set
+            //
+            FieldVal = {0, 0, 0};
+            if( !(ms.MeCom_TEC_Tem_TargetObjectTemp(Address, Instance, &FieldVal, MeGet)) )
+            {
+                #ifdef __DEBUG_VIA_SERIAL__
+                Serial.print(__PRETTY_FUNCTION__);
+                Serial.flush();
+                Serial.print(" failed to MeGet for Address ");
+                Serial.flush();
+                Serial.println(Address, HEX);
+                Serial.flush();
+                #endif
+
+                retVal = false;
+            } else
+            {
+                if( (FieldVal.Value !=  temp) )
+                {
+                    #ifdef __DEBUG_VIA_SERIAL__
+                    Serial.print(__PRETTY_FUNCTION__);
+                    Serial.flush();
+                    Serial.print(" retported temps don't match input ");
+                    Serial.flush();
+                    Serial.print(temp, 2);
+                    Serial.flush();
+                    Serial.print(" fetched ");
+                    Serial.flush();
+                    Serial.print(FieldVal.Value, 2);
+                    Serial.flush();
+                    Serial.print(" for Address ");
+                    Serial.println(Address, HEX);
+                    Serial.flush();
+                    #endif
+
+                    retVal = false;
+                } else
+                {
+                    #ifdef __DEBUG_VIA_SERIAL__
+                    Serial.print(__PRETTY_FUNCTION__);
+                    Serial.flush();
+                    Serial.print(" retported temps do match input ");
+                    Serial.flush();
+                    Serial.print(temp, 2);
+                    Serial.flush();
+                    Serial.print(" fetched ");
+                    Serial.flush();
+                    Serial.print(FieldVal.Value, 2);
+                    Serial.flush();
+                    Serial.print(" for Address ");
+                    Serial.println(Address, HEX);
+                    Serial.flush();
+                    #endif
+
+                    retVal = true;
+                }
+            }
+        }
     }
 
     return(retVal);
@@ -619,6 +794,11 @@ bool setTECTemp(float temp)
 
 bool setChillerSetPoint(char* temp)
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     return(chiller.SetSetPoint(temp));
 }
 
@@ -631,6 +811,12 @@ void handleMsgs()
     static uint8_t counter  = 0;    // for looping through the following temps
     char* chillerSetPointTemps[] = {"0010", "0020", "0030", "0040"};  // -20 to +60C is valid
     float TECTemps[] = {-21.5, -22.5, -23.5, -24.5};  // -20 to +60C is valid
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
 
     //
     // TODO: implement handleMsgs
@@ -666,6 +852,7 @@ void handleMsgs()
         case 0:     // startUp message
         {
             #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
             Serial.println("======================================");
             Serial.println("simulated doing startUp()");
             #endif
@@ -682,19 +869,11 @@ void handleMsgs()
             */
             break;
         };
-        case 3:     // shutDown message
-        {
-            #ifdef __DEBUG_VIA_SERIAL__
-            Serial.println("======================================");
-            Serial.println("simulated doing shutDown()");
-            #endif
 
-            shutDown();
-            break;
-        };
         case 1:     // setTECTemp message
         {
             #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
             Serial.println("======================================");
             Serial.println("simulated doing setTECTemp()");
             #endif
@@ -702,6 +881,7 @@ void handleMsgs()
             for(int i = 0; i < 4; i++)
             {
                 #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println("");
                 Serial.print("simulated doing setTECTemp(");
                 Serial.print(TECTemps[i]);
                 Serial.println(")");
@@ -709,13 +889,14 @@ void handleMsgs()
                 setTECTemp(TECTemps[i]);
             }
                 
-            counter = (counter > 3 ? 0 : counter++);
+            //counter = (counter > 4 ? 0 : counter++);
             break;
         };
+
         case 2:     // setChillerTemp message
         {
-
             #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
             Serial.println("======================================");
             Serial.println("simulated doing setChillerSetPoint()");
             #endif
@@ -723,6 +904,7 @@ void handleMsgs()
             for(int i = 0; i < 4; i++)
             {
                 #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println("");
                 Serial.print("simulated doing setChillerSetPoint(");
                 Serial.print(chillerSetPointTemps[i]);
                 Serial.println(")");
@@ -730,22 +912,71 @@ void handleMsgs()
                 setChillerSetPoint(chillerSetPointTemps[i]);
             }
                 
-            counter = (counter > 3 ? 0 : counter++);
+            //counter = (counter > 4 ? 0 : counter++);
             break;
         };
-        /*
-        case 4:     // setSensorTemp message
+
+        case 3:     // shutDown message
         {
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
+            Serial.println("======================================");
+            Serial.println("simulated doing shutDown()");
+            #endif
+
+            shutDown();
+            //counter = (counter > 4 ? 0 : counter++);
             break;
         };
-        case 5:     // setSensorHumidity message
+
+        case 4:     // initialize system .. ?
+        {
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
+            Serial.println("======================================");
+            Serial.println("simulated doing allDevicesPresent()");
+            #endif
+
+            allDevicesPresent();
+            //counter = (counter > 4 ? 0 : counter++);
+            break;
+        };
+
+        case 5:     // startUp message
+        {
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
+            Serial.println("======================================");
+            Serial.println("simulated doing startUp() again...");
+            #endif
+
+            startUp();
+            /*
+            if( startUp() )
+            {
+                sendStartUpACK();
+            } else
+            {
+                sendStartUpNACK();
+            }
+            */
+            break;
+        };
+
+        /*
+        case 6:     // setSensorHumidity message
         {
             break;
         };
         */
+
         default:
         {
-            msgCounter = 0;
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println("");
+            Serial.println("======================================");
+            Serial.println("done with handleMsgs simulation...");
+            #endif
             break;
         }
     }
@@ -754,6 +985,11 @@ void handleMsgs()
 
 void lcd_initializing()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -766,6 +1002,11 @@ void lcd_initializing()
 
 void lcd_notAllDevicesPresent()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -780,6 +1021,11 @@ void lcd_notAllDevicesPresent()
 
 void lcd_chillerWarning()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -794,6 +1040,11 @@ void lcd_chillerWarning()
 
 void lcd_initFailed()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -808,6 +1059,11 @@ void lcd_initFailed()
 
 void lcd_sensorFailure()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -820,6 +1076,11 @@ void lcd_sensorFailure()
 
 void lcd_tecFailure()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -832,6 +1093,11 @@ void lcd_tecFailure()
 
 void lcd_chillerFailure()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -843,6 +1109,11 @@ void lcd_chillerFailure()
 
 void lcd_sensorStatus()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
 
     if( (humidity > HUMIDITY_THRESHOLD) )
@@ -884,6 +1155,11 @@ void lcd_sensorStatus()
 
 void lcd_humidityAlert()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();
@@ -898,6 +1174,11 @@ void lcd_humidityAlert()
 
 void lcd_humidityThreshold()
 {
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
     /* TODO: put this back
     lcd.display();
     lcd.clear();

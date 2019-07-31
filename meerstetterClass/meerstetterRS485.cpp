@@ -100,16 +100,23 @@ void meerstetterRS485::ComPort_Send(char *in)
 
     if(size != len)
     {
-        Serial.print("ERROR : __PRETTY_FUNCTION__ got unexp bytes sent, got : ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println("ERROR got unexp bytes sent, got : ");
         Serial.println(size, DEC);
         stats.pktTxBadLength += 1;
         return; //TODO : return data Write Error
     #ifdef __DEBUG_PKT_TX__
     } else
     {
-        Serial.print("__PRETTY_FUNCTION__ sent ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" sent ");
         Serial.print(size, DEC);
         Serial.println(" bytes");
+        Serial.flush();
+        for(int x = 0; x < size; x++)
+            Serial.print((char)in[x]);
+        Serial.println("");
+        Serial.flush();
     #endif
     }
 }
@@ -127,13 +134,6 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
     const uint8_t STX       = '!';
     const uint8_t ETX       = '\r';
     unsigned long startTime = millis();
-
-    // debug stuff
-    #ifdef __DEBUG_PKT_RX__
-    Serial.print("before loop timedOut is: ");
-    Serial.println(timedOut, DEC);
-    Serial.flush();
-    #endif
 
         
     // try to read a packet for a total of TimeoutMs milliseconds
@@ -192,11 +192,14 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
 
     // debug stuff
     #ifdef __DEBUG_PKT_RX__
-    Serial.print("__PRETTY_FUNCTION__ received ");
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.print(" rx'ed ");
     Serial.print(bytes_read, DEC);
     Serial.println(" bytes");
-    Serial.print("timedOut is: ");
-    Serial.println(timedOut, DEC);
+    Serial.flush();
+    for(int x = 0; x < bytes_read; x++)
+        Serial.print((char)Buffer[x]);
+    Serial.println("");
     Serial.flush();
     #endif
 
@@ -973,7 +976,8 @@ bool meerstetterRS485::StartTEC(uint8_t Address)
     if( !(MeCom_TEC_Ope_OutputStageEnable(Address, Instance, &FieldVal, MeSet)) )
     {
         #ifdef __DEBUG_MS_VIA_SERIAL__
-        Serial.print("__PRETTY_FUNCTION__ OutputStageEnable failed for addr ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" OutputStageEnable failed for addr ");
         Serial.println(Address, DEC);
         #endif
     } else
@@ -982,7 +986,8 @@ bool meerstetterRS485::StartTEC(uint8_t Address)
         if( !(MeCom_TEC_Oth_LiveEnable(Address, Instance, &FieldVal, MeSet)) )
         {
             #ifdef __DEBUG_MS_VIA_SERIAL__
-            Serial.print("__PRETTY_FUNCTION__ LiveEnable failed for addr ");
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.print(" LiveEnable failed for addr ");
             Serial.println(Address, DEC);
             #endif
         } else
@@ -997,7 +1002,8 @@ bool meerstetterRS485::StartTEC(uint8_t Address)
             #ifdef __DEBUG_MS_VIA_SERIAL__
             } else
             {
-                Serial.print("__PRETTY_FUNCTION__ TEC not running for addr ");
+                Serial.print(__PRETTY_FUNCTION__);
+                Serial.print(" TEC not running for addr ");
                 Serial.println(Address, DEC);
             #endif
             }
@@ -1023,7 +1029,8 @@ bool meerstetterRS485::StopTEC(uint8_t Address)
     if( !(MeCom_TEC_Oth_LiveEnable(Address, Instance, &FieldVal, MeSet)) )
     {
         #ifdef __DEBUG_MS_VIA_SERIAL__
-        Serial.print("__PRETTY_FUNCTION__ LiveEnable failed for addr ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" LiveEnable failed for addr ");
         Serial.println(Address, DEC);
         #endif
     }
@@ -1036,7 +1043,8 @@ bool meerstetterRS485::StopTEC(uint8_t Address)
     if( !(MeCom_TEC_Ope_OutputStageEnable(Address, Instance, &FieldVal, MeSet)) )
     {
         #ifdef __DEBUG_MS_VIA_SERIAL__
-        Serial.print("__PRETTY_FUNCTION__ OutputStageEnable failed for addr ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" OutputStageEnable failed for addr ");
         Serial.println(Address, DEC);
         #endif
     }
@@ -1051,7 +1059,8 @@ bool meerstetterRS485::StopTEC(uint8_t Address)
         retVal  = true;
     #ifdef __DEBUG_MS_VIA_SERIAL__
     else {
-        Serial.print("__PRETTY_FUNCTION__ TECRunning is still true for addr ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" TECRunning is still true for addr ");
         Serial.println(Address, DEC);
     }
     #endif
@@ -1070,14 +1079,14 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
     FieldVal = {0, 0, 0};
     if( (MeCom_COM_DeviceStatus(Address, &FieldVal, MeGet)) )
     {
-        //if( (2 == FieldVal.Value) )  TODO: figure out the TEC running state
-        if( (1 == FieldVal.Value) )
+        if( (1 == FieldVal.Value) || (2 == FieldVal.Value) )  //TODO: figure out the TEC running state
         {
             retVal  = true;
         #ifdef __DEBUG_MS_VIA_SERIAL__
         } else
         {
-            Serial.print("__PRETTY_FUNCTION__ DeviceStatus not run for Address ");
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.print(" DeviceStatus not run for Address ");
             Serial.print(Address, DEC);
             Serial.print(", is ");
             Serial.println(FieldVal.Value, DEC);
@@ -1086,7 +1095,8 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
     #ifdef __DEBUG_MS_VIA_SERIAL__
     } else
     {
-        Serial.print("__PRETTY_FUNCTION__ unable to MeCom_COM_DeviceStatus for Address ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" unable to MeCom_COM_DeviceStatus for Address ");
         Serial.println(Address, DEC);
     #endif
     }
@@ -1111,7 +1121,8 @@ bool meerstetterRS485::TECPresent(uint8_t Address)
         #ifdef __DEBUG_MS_VIA_SERIAL__
         } else
         {
-            Serial.print("__PRETTY_FUNCTION__ DeviceStatus not run for Address ");
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.print(" DeviceStatus not run for Address ");
             Serial.print(Address, DEC);
             Serial.print(", is ");
             Serial.println(FieldVal.Value, DEC);
@@ -1120,7 +1131,8 @@ bool meerstetterRS485::TECPresent(uint8_t Address)
     #ifdef __DEBUG_MS_VIA_SERIAL__
     } else
     {
-        Serial.print("__PRETTY_FUNCTION__ unable to MeCom_COM_DeviceStatus for Address ");
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" unable to MeCom_COM_DeviceStatus for Address ");
         Serial.println(Address, DEC);
     #endif
     }
