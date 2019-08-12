@@ -12,6 +12,8 @@
 #define MAX_SHUTDOWN_ATTEMPTS 1
 
 #define __DEBUG_LSSERIES_OPERATION__
+#define __DEBUG_PKT_RX__
+#define __DEBUG_PKT_TX__
 
 const uint8_t MAX_BUFF_LENGTH   = 10;
 

@@ -748,7 +748,7 @@ bool  RS232LSSeriesChiller::OutputContinuousDataStream(char OnOff)
 }
 
 
-bool RS232LSSeriesChiller::RS232LSSeriesChiller::TxCommand()
+bool RS232LSSeriesChiller::TxCommand()
 {
     uint8_t lenWritten;
     bool    retVal  = true;
@@ -756,15 +756,16 @@ bool RS232LSSeriesChiller::RS232LSSeriesChiller::TxCommand()
 
     // class member Buff is filled in by the member functions
     lenWritten = Serial2.write(Buff);
+    Serial2.flush();
 
     if( (lenWritten != strlen(Buff)) )
     {
-        Serial.println("__PRETTY_FUNCTION__ failed");
+        Serial.println("__pretty_function__ failed");
         retVal  = false;
     #ifdef __DEBUG_PKT_TX__
     } else
     {
-        Serial.println("RS232LSSeriesChiller::TxCommand success");
+        Serial.println("__prettty_function__ success");
     #endif
     }
     
@@ -824,7 +825,8 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
             {
                 // TODO: too long, too short ?
                 // no data available, wait a bit before checking again
-                delay(10);
+                //Serial.println("Serial2 no bytes available");
+                delay(100);
             }
         }
     }
@@ -834,9 +836,11 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
 
     // debug stuff
     #ifdef __DEBUG_PKT_RX__
-    Serial.print("__PRETTY_FUNCTION__ received ");
+    Serial.print("__pretty_function__ received ");
     Serial.print(bytes_read, DEC);
     Serial.println(" bytes");
+    Serial.print("got: ");
+    Serial.println(Buff);
     #endif
 
     if( (0 != pBuff) )
@@ -854,7 +858,7 @@ bool RS232LSSeriesChiller::RxResponse(char** retBuff, uint32_t TimeoutMs)
 RS232LSSeriesChiller::RS232LSSeriesChiller(uint32_t SSerialRX, uint32_t SSerialTX, uint32_t Speed, uint32_t Config)
 {
     // set the configuration upon start
-    Serial2.begin(Speed);  // can't supply the config parameter, default is 8N1 though
+    Serial2.begin(9600, SERIAL_8N1);  // can't supply the config parameter, default is 8N1 though
 }
     
 
@@ -871,37 +875,31 @@ bool RS232LSSeriesChiller::StartChiller()
         //
         // turn off echo and turn off continuous data stream
         //
-        if(SetCommandEcho('0') && (OutputContinuousDataStream('0')) )
+        SetCommandEcho('0');
+        OutputContinuousDataStream('0');
+
+        // chiller is on-line, start the pump
+        if(SetOnOff('1'))
         {
-            // chiller is on-line, start the pump
-            if(SetOnOff('1'))
-            {
-                //
-                // documentation for the LS Series reads the pump will start 90 seconds after startup
-                // .. so lets wait ??
-                //
-                #ifdef __DEBUG_LSSERIES_OPERATION__
-                Serial.println("__PRETTY_FUNCTION__ sleeping 95 seconds while chiller starts");
-                #endif
-                delay(95000);
-    
-                //
-                // verify the chiller status is 'Running'
-                //
-                if( (ChillerRunning()) )
-                    retVal = true;
-    
+            //
+            // documentation for the LS Series reads the pump will start 90 seconds after startup
+            // .. so lets wait ??
+            //
             #ifdef __DEBUG_LSSERIES_OPERATION__
-            } else
-            {
-                Serial.println("__PRETTY_FUNCTION__ unable to SetOnOff");
+            Serial.println("__FUNCTION__ sleeping 95 seconds while chiller starts");
             #endif
-            }
-    
+            delay(95000);
+
+            //
+            // verify the chiller status is 'Running'
+            //
+            if( (ChillerRunning()) )
+                retVal = true;
+
         #ifdef __DEBUG_LSSERIES_OPERATION__
         } else
         {
-            Serial.println("__PRETTY_FUNCTION__ unable to stop echo and cmd stream");
+            Serial.println("__pretty_function__ unable to SetOnOff");
         #endif
         }
     }
@@ -925,14 +923,14 @@ bool RS232LSSeriesChiller::ChillerRunning()
         #ifdef __DEBUG_LSSERIES_OPERATION__
         else
         {
-            Serial.print("__PRETTY_FUNCTION__ ReadStatus got ");
+            Serial.print("__pretty_function__ ReadStatus got ");
             Serial.println(buff[0]);
         }
         #endif
     #ifdef __DEBUG_LSSERIES_OPERATION__
     } else
     {
-        Serial.println("__PRETTY_FUNCTION__ unable to ReadStatus");
+        Serial.println("__pretty_function__ unable to ReadStatus");
     #endif
     }
 
@@ -959,7 +957,7 @@ bool RS232LSSeriesChiller::StopChiller()
         #ifdef __DEBUG_LSSERIES_OPERATION__
         } else
         {
-            Serial.println("__PRETTY_FUNCTION__ unable to SetOnOff");
+            Serial.println("__pretty_function__ unable to SetOnOff");
         #endif
         }
     }

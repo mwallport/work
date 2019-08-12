@@ -18,9 +18,10 @@
 //#define __DEBUG_HUBER__
 #define __DEBUG_HUBER_ERROR__
 
-const uint8_t MAX_BUFF_LENGTH               = 100; 
+const uint8_t MAX_COMMAND_RETRY             = 3;
+const uint8_t MAX_BUFF_LENGTH               = 30; 
 const uint8_t MAX_SLAVE_ID_LENGTH           = 2;
-const uint8_t MAX_SLAVE_NAME_LENGTH         = 30;
+const uint8_t MAX_SLAVE_NAME_LENGTH         = 20;
 const uint8_t MAX_LIMIT_LENGTH              = 4;
 const uint8_t COMMAND_QUALIFIER_INDEX       = 4;
 const uint8_t ADDRESS_INDEX                 = 2;
@@ -79,7 +80,7 @@ typedef struct _HuberData
 class huber
 {
     public:
-    huber(uint32_t);    // speed only, may be on Serial2 w/ 8N1 (default)
+    huber(uint16_t, uint16_t, uint32_t);
     virtual ~huber();
     
     //
@@ -99,8 +100,10 @@ class huber
     bool  ChillerRunning();
     bool  ChillerPresent();
     bool  SetSetPoint(const char*);
-    const char*  GetSetPoint() const;
-    const char*  GetAlarms() const;
+    const char* GetSetPoint() const;
+    const char* GetInternalTemp() const;
+    const char* GetExternalTemp() const;
+    const char* GetAlarms() const;
 
 
     protected:
@@ -112,6 +115,9 @@ class huber
     bool    RxResponse(char**, uint32_t TimeoutMs);
     bool    verifyLengthAndCheckSum();
     void    setLengthAndCheckSum();
+
+    // software serial connection
+    //SoftwareSerial mySerial2;
 
     // working buffer
     char    Buff[MAX_BUFF_LENGTH + 1];

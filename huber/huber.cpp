@@ -9,11 +9,13 @@
 #include <string.h>
 
 
+SoftwareSerial mySerial2(0, 1);
+
 
 //
 // class definitions
 //
-huber::huber(uint32_t Speed)
+huber::huber(uint16_t Rx, uint16_t Tx, uint32_t Speed)
  : chillerInitialized(false)
 {
 #ifdef __DEBUG_FUNC_HUBER__
@@ -35,7 +37,8 @@ debug dbg();
     //
     // set the configuration upon start
     //
-    Serial2.begin(Speed, SERIAL_8N1);
+    mySerial2.begin(Speed);
+    //Serial2.begin(Speed, SERIAL_8N1);
 }
     
 
@@ -58,8 +61,10 @@ debug dbg();
 
 
     // class member Buff is filled in by the member functions
-    lenWritten = Serial2.write(Buff);
-    Serial2.flush();
+    lenWritten = mySerial2.write(Buff);
+    mySerial2.flush();
+    //lenWritten = Serial2.write(Buff);
+    //Serial2.flush();
 
     if( (lenWritten != strlen(Buff)) )
     {
@@ -111,9 +116,11 @@ debug dbg();
             timedOut = true;
         } else
         {
-            if( (Serial2.available()) )
+            //if( (Serial2.available()) )
+            if( (mySerial2.available()) )
             {
-                Buff[bytes_read] = Serial2.read();
+                //Buff[bytes_read] = Serial2.read();
+                Buff[bytes_read] = mySerial2.read();
 
                 if( (!gotSTX) )
                 {
@@ -197,115 +204,123 @@ debug dbg();
 #endif
 
     bool    retVal      = false;
+    bool    cmdTxAckRx  = false;
     uint8_t count       = 0;
+    uint8_t retry       = 0;
 
 
-    //
-    // build the Verify command
-    //
-    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
-    Buff[count++] = '[';
-    Buff[count++] = 'M';
-    Buff[count++] = slaveID[0];    // assuming slave address is "01"
-    Buff[count++] = slaveID[1];
-    Buff[count++] = 'V';
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = '\r';
-    Buff[count] = '\0';
-
-    //
-    // set the length of data and checksum
-    //
-    setLengthAndCheckSum();
-
-    #ifdef __DEBUG_PKT_TX__
-    Serial.print(__PRETTY_FUNCTION__);
-    Serial.flush();
-    Serial.print(" sending ");
-    Serial.flush();
-    Serial.print(count, DEC);
-    Serial.flush();
-    Serial.println(" bytes");
-    Serial.flush();
-    Serial.println(Buff);
-    Serial.flush();
-    #endif
-
-    //
-    // Tx the command
-    //
-    if( (TxCommand()) )
+    do
     {
         //
-        // RxResponse also verifies the length and checksum
+        // build the Verify command
         //
-        if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+        Buff[count++] = '[';
+        Buff[count++] = 'M';
+        Buff[count++] = slaveID[0];    // assuming slave address is "01"
+        Buff[count++] = slaveID[1];
+        Buff[count++] = 'V';
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = '\r';
+        Buff[count] = '\0';
+    
+        //
+        // set the length of data and checksum
+        //
+        setLengthAndCheckSum();
+    
+        #ifdef __DEBUG_PKT_TX__
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.flush();
+        Serial.print(" sending ");
+        Serial.flush();
+        Serial.print(count, DEC);
+        Serial.flush();
+        Serial.println(" bytes");
+        Serial.flush();
+        Serial.println(Buff);
+        Serial.flush();
+        #endif
+    
+        //
+        // Tx the command
+        //
+        if( (TxCommand()) )
         {
             //
-            // packet length must at least be 11 bytes long - this is a one charater name
+            // RxResponse also verifies the length and checksum
             //
-            if( (strlen(Buff) >= MIN_VERIFY_RESPONSE_LENGTH) )
+            if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
             {
+                cmdTxAckRx = true;
+    
                 //
-                // this is a validated packet, OK to proceed
-                // - pick up the slave ID and name
+                // packet length must at least be 11 bytes long - this is a one charater name
                 //
-                // verify command qualifier - should be 'V'
-                //
-                if( ('V' == Buff[COMMAND_QUALIFIER_INDEX]) )
+                if( (strlen(Buff) >= MIN_VERIFY_RESPONSE_LENGTH) )
                 {
                     //
-                    // pick up the slave's address
+                    // this is a validated packet, OK to proceed
+                    // - pick up the slave ID and name
                     //
-                    strncpy(slaveID, &Buff[ADDRESS_INDEX], MAX_SLAVE_ID_LENGTH);
+                    // verify command qualifier - should be 'V'
+                    //
+                    if( ('V' == Buff[COMMAND_QUALIFIER_INDEX]) )
+                    {
+                        //
+                        // pick up the slave's address
+                        //
+                        strncpy(slaveID, &Buff[ADDRESS_INDEX], MAX_SLAVE_ID_LENGTH);
+        
+                        //
+                        // pick up the name of the unit - should be the whole data section
+                        //
+                        strncpy(slaveName, &Buff[DATA_START_INDEX],
+                            (strlen(Buff) - (DATA_START_INDEX + CHKSUM_PLUS_ETX_LENGTH)) );
+        
+                        #ifdef __DEBUG_HUBER__
+                        Serial.print("sendVerifyCommand found slaveId ");
+                        Serial.flush();
+                        Serial.println(slaveID);
+                        Serial.flush();
+                        Serial.print("sendVerifyCommand found name ");
+                        Serial.flush();
+                        Serial.println(slaveName);
+                        Serial.flush();
+                        #endif
     
-                    //
-                    // pick up the name of the unit - should be the whole data section
-                    //
-                    strncpy(slaveName, &Buff[DATA_START_INDEX],
-                        (strlen(Buff) - (DATA_START_INDEX + CHKSUM_PLUS_ETX_LENGTH)) );
-    
-                    #ifdef __DEBUG_HUBER__
-                    Serial.print("sendVerifyCommand found slaveId ");
-                    Serial.flush();
-                    Serial.println(slaveID);
-                    Serial.flush();
-                    Serial.print("sendVerifyCommand found name ");
-                    Serial.flush();
-                    Serial.println(slaveName);
-                    Serial.flush();
+                        retVal  = true;
+        
+                    #ifdef __DEBUG_HUBER_ERROR__
+                    } else
+                    {
+                        Serial.println("ERROR: sendVerifyCommand fail, did not get \'V\'");
                     #endif
-
-                    retVal  = true;
-    
+                    }
                 #ifdef __DEBUG_HUBER_ERROR__
                 } else
                 {
-                    Serial.println("ERROR: sendVerifyCommand fail, did not get \'V\'");
+                    Serial.println("ERROR: sendVerifyCommand Rx'ed Verify response packet is too short");
                 #endif
                 }
             #ifdef __DEBUG_HUBER_ERROR__
             } else
             {
-                Serial.println("ERROR: sendVerifyCommand Rx'ed Verify response packet is too short");
+                Serial.println("ERROR: sendVerifyCommand RxResponse failed");
             #endif
             }
         #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
-            Serial.println("ERROR: sendVerifyCommand RxResponse failed");
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.println("ERROR: TxCommand failed");
         #endif
         }
-    #ifdef __DEBUG_HUBER_ERROR__
-    } else
-    {
-        Serial.print(__PRETTY_FUNCTION__);
-        Serial.println("ERROR: TxCommand failed");
-    #endif
-    }
+
+    } while( (!cmdTxAckRx) && (retry++ < MAX_COMMAND_RETRY) );
 
     return(retVal);
 }
@@ -323,126 +338,134 @@ debug dbg();
 #endif
 
     bool    retVal      = false;
+    bool    cmdTxAckRx  = false;
     uint8_t count       = 0;
+    uint8_t retry       = 0;
 
 
-    //
-    // build the Limit command
-    //
-    // master: [M01L0F********1B\r
-    // slave:  [S01L17F4484E20F4484E2045\r
-    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
-    Buff[count++] = '[';
-    Buff[count++] = 'M';
-    Buff[count++] = slaveID[0];    // assuming slave address is "01"
-    Buff[count++] = slaveID[1];
-    Buff[count++] = 'L';
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = '*';    // asterisk is 'no change, give me the limits
-    Buff[count++] = '*';
-    Buff[count++] = '*';
-    Buff[count++] = '*';
-    Buff[count++] = '*';
-    Buff[count++] = '*';
-    Buff[count++] = '*';
-    Buff[count++] = '*';
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
-    Buff[count++] = '\r';
-    Buff[count] = '\0';
-
-    //
-    // set the length of data and checksum
-    //
-    setLengthAndCheckSum();
-
-    #ifdef __DEBUG_PKT_TX__
-    Serial.print("sendLimitCommand is sending: ");
-    Serial.flush();
-    Serial.println(Buff);
-    Serial.flush();
-    #endif
-
-    //
-    // Tx the command
-    //
-    if( (TxCommand()) )
+    do
     {
         //
-        // RxResponse also verifies the length and checksum
+        // build the Limit command
         //
-        if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
+        // master: [M01L0F********1B\r
+        // slave:  [S01L17F4484E20F4484E2045\r
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+        Buff[count++] = '[';
+        Buff[count++] = 'M';
+        Buff[count++] = slaveID[0];    // assuming slave address is "01"
+        Buff[count++] = slaveID[1];
+        Buff[count++] = 'L';
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = '*';    // asterisk is 'no change, give me the limits
+        Buff[count++] = '*';
+        Buff[count++] = '*';
+        Buff[count++] = '*';
+        Buff[count++] = '*';
+        Buff[count++] = '*';
+        Buff[count++] = '*';
+        Buff[count++] = '*';
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = 'x';    // setLengthAndCheckSum to fill in
+        Buff[count++] = '\r';
+        Buff[count] = '\0';
+    
+        //
+        // set the length of data and checksum
+        //
+        setLengthAndCheckSum();
+    
+        #ifdef __DEBUG_PKT_TX__
+        Serial.print("sendLimitCommand is sending: ");
+        Serial.flush();
+        Serial.println(Buff);
+        Serial.flush();
+        #endif
+    
+        //
+        // Tx the command
+        //
+        if( (TxCommand()) )
         {
             //
-            // packet length must at least be 11 bytes long - this is a one charater name
+            // RxResponse also verifies the length and checksum
             //
-            if( (strlen(Buff) >= MIN_LIMIT_RESPONSE_LENGTH) )
+            if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
             {
+                cmdTxAckRx = true;
+ 
                 //
-                // this is a validated packet, OK to proceed
-                // - pick up the slave ID and name
+                // packet length must at least be 11 bytes long - this is a one charater name
                 //
-                // verify command qualifier - should be 'V'
-                //
-                // slave:  [S01L17 F448 4E20 F448 4E20 45\r
-                if( ('L' == Buff[COMMAND_QUALIFIER_INDEX]) )
+                if( (strlen(Buff) >= MIN_LIMIT_RESPONSE_LENGTH) )
                 {
                     //
-                    // pick up the lower setpoint limit, upper setpoint limit,
-                    // lower working range limit, upper working range limit
+                    // this is a validated packet, OK to proceed
+                    // - pick up the slave ID and name
                     //
-                    strncpy(lowerSetPointLimit, &Buff[DATA_START_INDEX], MAX_LIMIT_LENGTH);
-                    strncpy(upperSetPointLimit, &Buff[DATA_START_INDEX + 4], MAX_LIMIT_LENGTH);
-                    strncpy(upperWorkingRangeLimit, &Buff[DATA_START_INDEX + 8], MAX_LIMIT_LENGTH);
-                    strncpy(lowerWorkingRangeLimit, &Buff[DATA_START_INDEX + 12], MAX_LIMIT_LENGTH);
+                    // verify command qualifier - should be 'V'
+                    //
+                    // slave:  [S01L17 F448 4E20 F448 4E20 45\r
+                    if( ('L' == Buff[COMMAND_QUALIFIER_INDEX]) )
+                    {
+                        //
+                        // pick up the lower setpoint limit, upper setpoint limit,
+                        // lower working range limit, upper working range limit
+                        //
+                        strncpy(lowerSetPointLimit, &Buff[DATA_START_INDEX], MAX_LIMIT_LENGTH);
+                        strncpy(upperSetPointLimit, &Buff[DATA_START_INDEX + 4], MAX_LIMIT_LENGTH);
+                        strncpy(upperWorkingRangeLimit, &Buff[DATA_START_INDEX + 8], MAX_LIMIT_LENGTH);
+                        strncpy(lowerWorkingRangeLimit, &Buff[DATA_START_INDEX + 12], MAX_LIMIT_LENGTH);
+        
+                        #ifdef __DEBUG_HUBER__
+                        Serial.print("sendLimitCommand found following limits 0x");
+                        Serial.flush();
+                        Serial.print(lowerSetPointLimit);
+                        Serial.flush();
+                        Serial.print(" 0x");
+                        Serial.flush();
+                        Serial.println(upperSetPointLimit);
+                        Serial.flush();
+                        Serial.print(" 0x");
+                        Serial.flush();
+                        Serial.println(upperWorkingRangeLimit);
+                        Serial.flush();
+                        Serial.print(" 0x");
+                        Serial.flush();
+                        Serial.println(lowerWorkingRangeLimit);
+                        Serial.flush();
+                        #endif
     
-                    #ifdef __DEBUG_HUBER__
-                    Serial.print("sendLimitCommand found following limits 0x");
-                    Serial.flush();
-                    Serial.print(lowerSetPointLimit);
-                    Serial.flush();
-                    Serial.print(" 0x");
-                    Serial.flush();
-                    Serial.println(upperSetPointLimit);
-                    Serial.flush();
-                    Serial.print(" 0x");
-                    Serial.flush();
-                    Serial.println(upperWorkingRangeLimit);
-                    Serial.flush();
-                    Serial.print(" 0x");
-                    Serial.flush();
-                    Serial.println(lowerWorkingRangeLimit);
-                    Serial.flush();
+                        retVal  = true;
+        
+                    #ifdef __DEBUG_HUBER_ERROR__
+                    } else
+                    {
+                        Serial.println("ERROR: sendLimitCommand fail, did not get \'L\'");
                     #endif
-
-                    retVal  = true;
-    
+                    }
                 #ifdef __DEBUG_HUBER_ERROR__
                 } else
                 {
-                    Serial.println("ERROR: sendLimitCommand fail, did not get \'L\'");
+                    Serial.println("ERROR: sendLimitCommand Rx'ed Limit response packet is too short");
                 #endif
                 }
             #ifdef __DEBUG_HUBER_ERROR__
             } else
             {
-                Serial.println("ERROR: sendLimitCommand Rx'ed Limit response packet is too short");
+                Serial.println("ERROR: sendLimitCommand RxResponse failed");
             #endif
             }
         #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
-            Serial.println("ERROR: sendLimitCommand RxResponse failed");
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.println("ERROR: TxCommand failed");
         #endif
         }
-    #ifdef __DEBUG_HUBER_ERROR__
-    } else
-    {
-        Serial.print(__PRETTY_FUNCTION__);
-        Serial.println("ERROR: TxCommand failed");
-    #endif
-    }
+
+    } while( (!cmdTxAckRx) && (retry++ < MAX_COMMAND_RETRY) );
 
     return(retVal);
 }
@@ -463,7 +486,9 @@ debug dbg();
 #endif
 
     bool    retVal      = false;
+    bool    cmdTxAckRx  = false;
     uint8_t count       = 0;
+    uint8_t retry       = 0;
 
 
     #ifdef __DEBUG_PKT_TX__
@@ -473,118 +498,124 @@ debug dbg();
     Serial.flush();
     #endif
 
-    //
-    // Tx the command
-    //
-    if( (TxCommand()) )
+    do
     {
         //
-        // RxResponse also verifies the length and checksum
+        // Tx the command
         //
-        if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
+        if( (TxCommand()) )
         {
             //
-            // packet length must at least be 11 bytes long - this is a one charater name
+            // RxResponse also verifies the length and checksum
             //
-            if( (strlen(Buff) >= MIN_GENERAL_RESPONSE_LENGTH) )
+            if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
             {
+                cmdTxAckRx = true;
+
                 //
-                // example from doc ...
+                // packet length must at least be 11 bytes long - this is a one charater name
                 //
-                // *    - temp control mode and alarm status should remain unchanged 
-                // FE70 - and a setpoint of -4.00C is to be set
-                // master: [M01G 0D * * FE70 0A\r
-                //
-                // slave : [S01G 15 O 0 FE70 09A4 C504 E7\r
-                //  'O' - temperature control is turned off
-                //  '0' - there is no alarm
-                //  FE70 - set point of -4.00C was set
-                //  09A4 - the actual value is 24.68C
-                //  C504 - corresponds to -151.00C and indicates that no external temp sensor is install or connected
-                //
-                if( ('G' == Buff[COMMAND_QUALIFIER_INDEX]) )
+                if( (strlen(Buff) >= MIN_GENERAL_RESPONSE_LENGTH) )
                 {
                     //
-                    // reset and fill in the huberData structure
+                    // example from doc ...
                     //
-                    //memset(reinterpret_cast<void*>(&huberData), '\0', sizeof(huberData));
-
+                    // *    - temp control mode and alarm status should remain unchanged 
+                    // FE70 - and a setpoint of -4.00C is to be set
+                    // master: [M01G 0D * * FE70 0A\r
                     //
-                    // fill in the huberData structure
+                    // slave : [S01G 15 O 0 FE70 09A4 C504 E7\r
+                    //  'O' - temperature control is turned off
+                    //  '0' - there is no alarm
+                    //  FE70 - set point of -4.00C was set
+                    //  09A4 - the actual value is 24.68C
+                    //  C504 - corresponds to -151.00C and indicates that no external temp sensor is install or connected
                     //
-
-                    // get the temperature control mode
-                    strncpy(huberData.tempCtrlMode, &Buff[TEMP_CTRL_MODE_INDEX],
-                        MAX_TEMP_CTRL_MODE_LENGTH);
-
-                    // get the alarm status
-                    strncpy(huberData.alarmStatus, &Buff[ALARM_STATUS_INDEX],
-                        MAX_ALARM_STATUS_LENGTH);
-
-                    // get the set point status
-                    strncpy(huberData.setPointTemp, &Buff[SETPOINT_STATUS_INDEX],
-                        MAX_SET_POINT_LENGTH);
-
-                    // get the internal actual value
-                    strncpy(huberData.internalTemp, &Buff[INTERNAL_TEMP_INDEX],
-                        MAX_INTERNAL_TEMP_LENGTH);
-
-                    // get the external temperature
-                    strncpy(huberData.externalTemp, &Buff[EXTERNAL_TEMP_INDEX],
-                        MAX_EXTERNAL_TEMP_LENGTH);
-
-                    #ifdef __DEBUG_HUBER__
-                    Serial.println("sendGeneralCommand found the following:");
-                    Serial.flush();
-                    Serial.print("huberData.tempCtrlMode 0x");
-                    Serial.flush();
-                    Serial.println(huberData.tempCtrlMode);
-                    Serial.flush();
-                    Serial.print("huberData.alarmStatus 0x");
-                    Serial.flush();
-                    Serial.println(huberData.alarmStatus);
-                    Serial.flush();
-                    Serial.print("huberData.setPointTemp 0x");
-                    Serial.flush();
-                    Serial.println(huberData.setPointTemp);
-                    Serial.flush();
-                    Serial.print("huberData.internalTemp 0x");
-                    Serial.flush();
-                    Serial.println(huberData.internalTemp);
-                    Serial.flush();
-                    Serial.print("huberData.externalTemp 0x");
-                    Serial.flush();
-                    Serial.println(huberData.externalTemp);
-                    Serial.flush();
-                    #endif
-
-                    retVal  = true;
+                    if( ('G' == Buff[COMMAND_QUALIFIER_INDEX]) )
+                    {
+                        //
+                        // reset and fill in the huberData structure
+                        //
+                        //memset(reinterpret_cast<void*>(&huberData), '\0', sizeof(huberData));
     
+                        //
+                        // fill in the huberData structure
+                        //
+    
+                        // get the temperature control mode
+                        strncpy(huberData.tempCtrlMode, &Buff[TEMP_CTRL_MODE_INDEX],
+                            MAX_TEMP_CTRL_MODE_LENGTH);
+    
+                        // get the alarm status
+                        strncpy(huberData.alarmStatus, &Buff[ALARM_STATUS_INDEX],
+                            MAX_ALARM_STATUS_LENGTH);
+    
+                        // get the set point status
+                        strncpy(huberData.setPointTemp, &Buff[SETPOINT_STATUS_INDEX],
+                            MAX_SET_POINT_LENGTH);
+    
+                        // get the internal actual value
+                        strncpy(huberData.internalTemp, &Buff[INTERNAL_TEMP_INDEX],
+                            MAX_INTERNAL_TEMP_LENGTH);
+    
+                        // get the external temperature
+                        strncpy(huberData.externalTemp, &Buff[EXTERNAL_TEMP_INDEX],
+                            MAX_EXTERNAL_TEMP_LENGTH);
+    
+                        #ifdef __DEBUG_HUBER__
+                        Serial.println("sendGeneralCommand found the following:");
+                        Serial.flush();
+                        Serial.print("huberData.tempCtrlMode 0x");
+                        Serial.flush();
+                        Serial.println(huberData.tempCtrlMode);
+                        Serial.flush();
+                        Serial.print("huberData.alarmStatus 0x");
+                        Serial.flush();
+                        Serial.println(huberData.alarmStatus);
+                        Serial.flush();
+                        Serial.print("huberData.setPointTemp 0x");
+                        Serial.flush();
+                        Serial.println(huberData.setPointTemp);
+                        Serial.flush();
+                        Serial.print("huberData.internalTemp 0x");
+                        Serial.flush();
+                        Serial.println(huberData.internalTemp);
+                        Serial.flush();
+                        Serial.print("huberData.externalTemp 0x");
+                        Serial.flush();
+                        Serial.println(huberData.externalTemp);
+                        Serial.flush();
+                        #endif
+    
+                        retVal  = true;
+        
+                    #ifdef __DEBUG_HUBER_ERROR__
+                    } else
+                    {
+                        Serial.println("ERROR: sendGeneralCommand fail, did not get \'G\'");
+                    #endif
+                    }
                 #ifdef __DEBUG_HUBER_ERROR__
                 } else
                 {
-                    Serial.println("ERROR: sendGeneralCommand fail, did not get \'G\'");
+                    Serial.println("ERROR: sendGeneralCommand Rx'ed Limit response packet is too short");
                 #endif
                 }
             #ifdef __DEBUG_HUBER_ERROR__
             } else
             {
-                Serial.println("ERROR: sendGeneralCommand Rx'ed Limit response packet is too short");
+                Serial.println("ERROR: sendGeneralCommand RxResponse failed");
             #endif
             }
         #ifdef __DEBUG_HUBER_ERROR__
         } else
         {
-            Serial.println("ERROR: sendGeneralCommand RxResponse failed");
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.println("ERROR: TxCommand failed");
         #endif
         }
-    #ifdef __DEBUG_HUBER_ERROR__
-    } else
-    {
-        Serial.print(__PRETTY_FUNCTION__);
-        Serial.println("ERROR: TxCommand failed");
-    #endif
-    }
+
+    } while( (!cmdTxAckRx) && (retry++ < MAX_COMMAND_RETRY) );
 
     return(retVal);
 }
@@ -1017,6 +1048,18 @@ debug dbg();
 const char* huber::GetSetPoint() const
 {
     return(huberData.setPointTemp);
+}
+
+
+const char* huber::GetInternalTemp() const
+{
+    return(huberData.internalTemp);
+}
+
+
+const char* huber::GetExternalTemp() const
+{
+    return(huberData.externalTemp);
 }
 
 

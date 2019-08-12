@@ -12,8 +12,8 @@
 
 
 
-#define __DEBUG_PKT_TX__
-#define __DEBUG_PKT_RX__
+#define __DEBUG_MS_PKT_TX__
+#define __DEBUG_MS_PKT_RX__
 #define __DEBUG_MS_VIA_SERIAL__
 
 
@@ -139,6 +139,8 @@ class meerstetterRS485
     bool StopTEC(uint8_t);
     bool TECRunning(uint8_t);
     bool TECPresent(uint8_t);
+    bool SetTECTemp(uint8_t, float);
+    bool GetTECTemp(uint8_t, float*, float*);
 
     protected:
     //SoftwareSerial  RS485Serial;

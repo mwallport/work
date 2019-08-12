@@ -101,11 +101,11 @@ void meerstetterRS485::ComPort_Send(char *in)
     if(size != len)
     {
         Serial.print(__PRETTY_FUNCTION__);
-        Serial.println("ERROR got unexp bytes sent, got : ");
+        Serial.println(" ERROR got unexp bytes sent, got : ");
         Serial.println(size, DEC);
         stats.pktTxBadLength += 1;
         return; //TODO : return data Write Error
-    #ifdef __DEBUG_PKT_TX__
+    #ifdef __DEBUG_MS_PKT_TX__
     } else
     {
         Serial.print(__PRETTY_FUNCTION__);
@@ -191,7 +191,7 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
     Buffer[bytes_read] = 0;
 
     // debug stuff
-    #ifdef __DEBUG_PKT_RX__
+    #ifdef __DEBUG_MS_PKT_RX__
     Serial.print(__PRETTY_FUNCTION__);
     Serial.print(" rx'ed ");
     Serial.print(bytes_read, DEC);
@@ -1135,6 +1135,169 @@ bool meerstetterRS485::TECPresent(uint8_t Address)
         Serial.print(" unable to MeCom_COM_DeviceStatus for Address ");
         Serial.println(Address, DEC);
     #endif
+    }
+
+    return(retVal);
+}
+
+bool meerstetterRS485::SetTECTemp(uint8_t Address, float temp)
+{
+    bool retVal = true;
+    uint8_t Instance    = 1; 
+    MeParFloatFields FieldVal;
+
+    #ifdef __DEBUG_MS_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    FieldVal.Value = temp;
+    FieldVal.Min = FieldVal.Max = 0;
+
+    // TODO: how to handle this if one meerstetter doesn't change temp
+    if( !(MeCom_TEC_Tem_TargetObjectTemp(Address, Instance, &FieldVal, MeSet)) )
+    {
+        #ifdef __DEBUG_MS_VIA_SERIAL__
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.flush();
+        Serial.print(" failed to MeSet for Address ");
+        Serial.flush();
+        Serial.println(Address, HEX);
+        Serial.flush();
+        #endif
+
+        retVal = false;
+    } else
+    {
+        //
+        // check what was set
+        //
+        FieldVal.Value = FieldVal.Min = FieldVal.Max = 0;
+
+        if( !(MeCom_TEC_Tem_TargetObjectTemp(Address, Instance, &FieldVal, MeGet)) )
+        {
+            #ifdef __DEBUG_MS_VIA_SERIAL__
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.flush();
+            Serial.print(" failed to MeGet for Address ");
+            Serial.flush();
+            Serial.println(Address, HEX);
+            Serial.flush();
+            #endif
+
+            retVal = false;
+        } else
+        {
+            if( (FieldVal.Value !=  temp) )
+            {
+                #ifdef __DEBUG_MS_VIA_SERIAL__
+                Serial.print(__PRETTY_FUNCTION__);
+                Serial.flush();
+                Serial.print(" retported temps don't match input ");
+                Serial.flush();
+                Serial.print(temp, 2);
+                Serial.flush();
+                Serial.print(" fetched ");
+                Serial.flush();
+                Serial.print(FieldVal.Value, 2);
+                Serial.flush();
+                Serial.print(" for Address ");
+                Serial.println(Address, HEX);
+                Serial.flush();
+                #endif
+
+                retVal = false;
+            } else
+            {
+                #ifdef __DEBUG_MS_VIA_SERIAL__
+                Serial.print(__PRETTY_FUNCTION__);
+                Serial.flush();
+                Serial.print(" retported temps do match input ");
+                Serial.flush();
+                Serial.print(temp, 2);
+                Serial.flush();
+                Serial.print(" fetched ");
+                Serial.flush();
+                Serial.print(FieldVal.Value, 2);
+                Serial.flush();
+                Serial.print(" for Address ");
+                Serial.println(Address, HEX);
+                Serial.flush();
+                #endif
+
+                retVal = true;
+            }
+        }
+    }
+
+    return(retVal);
+}
+
+
+//
+// fetch the setpoint and the actual
+//
+// TODO:  find the correct commands
+//
+bool meerstetterRS485::GetTECTemp(uint8_t Address, float* setPoint, float* actualTemp)
+{
+    bool retVal = true;
+    uint8_t Instance    = 1; 
+    MeParFloatFields FieldVal;
+    float sp, at;
+
+
+    #ifdef __DEBUG_MS_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    //
+    // fetch the set point
+    //
+    FieldVal.Value = FieldVal.Min = FieldVal.Max = 0;
+    if( !(MeCom_TEC_Mon_TargetObjectTemperature(Address, Instance, &FieldVal, MeGet)) )
+    {
+        #ifdef __DEBUG_MS_VIA_SERIAL__
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.flush();
+        Serial.print(" failed to TargetObjectTemp for address ");
+        Serial.flush();
+        Serial.println(Address, HEX);
+        Serial.flush();
+        #endif
+
+        retVal = false;
+    } else
+    {
+        sp = FieldVal.Value;
+
+        //
+        // fetch the set actual temperature
+        //
+        FieldVal.Value = FieldVal.Min = FieldVal.Max = 0;
+        if( !(MeCom_TEC_Mon_ObjectTemperature(Address, Instance, &FieldVal, MeGet)) )
+        {
+            #ifdef __DEBUG_MS_VIA_SERIAL__
+            Serial.print(__PRETTY_FUNCTION__);
+            Serial.flush();
+            Serial.print(" failed to ObjectTemp for address ");
+            Serial.flush();
+            Serial.println(Address, HEX);
+            Serial.flush();
+            #endif
+    
+            retVal = false;
+        } else
+        {
+            at = FieldVal.Value;
+        }
+    }
+
+    if( (retVal) )
+    {
+        *actualTemp = at;
+        *setPoint   = sp;
     }
 
     return(retVal);

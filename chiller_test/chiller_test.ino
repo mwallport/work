@@ -21,6 +21,7 @@ void setup()
     // no setup() content
     Serial.begin(9600); 
 
+/*
 
     // turn off echo - send a 0
     if(chiller.SetCommandEcho('0'))
@@ -29,18 +30,21 @@ void setup()
         Serial.println("SetCommandEcho fail");
     Serial.println("");
 
-
     // turn off continuous output - send a 0
     if(chiller.OutputContinuousDataStream('0'))
         Serial.println("OutputContinuousDataStream success");
     else
         Serial.println("OutputContinuousDataStream fail");
     Serial.println("");
+*/
 }
 
 
 void loop()
 {
+    Serial.println("sleeping 10 seconds");
+    delay(10000);
+    
     Serial.println("Turning the chiller on...");
 
     if(chiller.StartChiller())
@@ -59,7 +63,7 @@ void loop()
     {
         Serial.println("chiller reports as not running...");
     }
-
+/*
     
     // 
     // guessing the Set set point using celcius .. not clear in the manual
@@ -187,4 +191,5 @@ void loop()
     
     Serial.println("sleeping 10 seconds...");
     delay(10000);
+    */
 }
