@@ -349,11 +349,6 @@ bool controlProtocol::TxResponseSerial(uint16_t length)
 }
 
 
-
-
-
-
-
 bool controlProtocol::GetStatus(uint16_t destAddress, uint16_t* humidityAlert,
                             uint16_t* TECsRunning,  uint16_t* chillerOnLine)
 {
@@ -647,7 +642,7 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
     bool                retVal  = false;
     uint16_t            seqNum;
     msgHeader_t*        pMsgHeader;
-    getHumidityThreshold_t*    pgetHumidityThreshold;
+    getHumidityThresholdResp_t*    pgetHumidityThresholdResp;
 
 
     //
@@ -670,7 +665,7 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(getHumidityThreshold_t); i++)
+            for(uint16_t i = 0; i < sizeof(getHumidityThresholdResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -681,7 +676,7 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (getHumidityThreshold != ntohs(pMsgHeader->msgNum)) )
+            if( (getHumidityThresholdResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -695,14 +690,14 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
             //
             // cast into the buffer, pick up the CRC
             //
-            pgetHumidityThreshold = reinterpret_cast<getHumidityThreshold_t*>(m_buff);
+            pgetHumidityThresholdResp = reinterpret_cast<getHumidityThresholdResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_getHumidityThreshold_t,
-                        ntohs(pgetHumidityThreshold->crc), seqNum)) )
+            if( !(verifyMessage(len_getHumidityThresholdResp_t,
+                        ntohs(pgetHumidityThresholdResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -743,7 +738,7 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
     uint16_t            seqNum;
     uint16_t            result;
     msgHeader_t*        pMsgHeader;
-    setTECTemperature_t*    psetTECTemperature;
+    setTECTemperatureResp_t*    psetTECTemperatureResp;
 
 
     //
@@ -766,7 +761,7 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(setTECTemperature_t); i++)
+            for(uint16_t i = 0; i < sizeof(setTECTemperatureResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -777,7 +772,7 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (setTECTemperature != ntohs(pMsgHeader->msgNum)) )
+            if( (setTECTemperatureResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -791,14 +786,14 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             // cast into the buffer, pick up the CRC
             //
-            psetTECTemperature = reinterpret_cast<setTECTemperature_t*>(m_buff);
+            psetTECTemperatureResp = reinterpret_cast<setTECTemperatureResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_setTECTemperature_t,
-                        ntohs(psetTECTemperature->crc), seqNum)) )
+            if( !(verifyMessage(len_setTECTemperatureResp_t,
+                        ntohs(psetTECTemperatureResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -838,7 +833,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
     bool                retVal  = false;
     uint16_t            seqNum;
     msgHeader_t*        pMsgHeader;
-    getTECTemperature_t*    pgetTECTemperature;
+    getTECTemperatureResp_t*    pgetTECTemperatureResp;
 
 
     //
@@ -861,7 +856,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(getTECTemperature_t); i++)
+            for(uint16_t i = 0; i < sizeof(getTECTemperatureResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -872,7 +867,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (getTECTemperature != ntohs(pMsgHeader->msgNum)) )
+            if( (getTECTemperatureResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -886,14 +881,14 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             // cast into the buffer, pick up the CRC
             //
-            pgetTECTemperature = reinterpret_cast<getTECTemperature_t*>(m_buff);
+            pgetTECTemperatureResp = reinterpret_cast<getTECTemperatureResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_getTECTemperature_t,
-                        ntohs(pgetTECTemperature->crc), seqNum)) )
+            if( !(verifyMessage(len_getTECTemperatureResp_t,
+                        ntohs(pgetTECTemperatureResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -911,7 +906,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             Parse_getTECTemperatureResp(m_buff, temperature, &seqNum);
 
-            printf("found in packet temperature %f seqNumer 0x%02x\n", temperature, seqNum);
+            printf("found in packet temperature %f seqNumer 0x%02x\n", *temperature, seqNum);
             
             retVal  = true;
         } else
@@ -934,7 +929,7 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
     uint16_t            seqNum;
     uint16_t            result;
     msgHeader_t*        pMsgHeader;
-    setChillerTemperature_t*    psetChillerTemperature;
+    setChillerTemperatureResp_t*    psetChillerTemperatureResp;
 
 
     //
@@ -957,7 +952,7 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(setChillerTemperature_t); i++)
+            for(uint16_t i = 0; i < sizeof(setChillerTemperatureResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -968,7 +963,7 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (setChillerTemperature != ntohs(pMsgHeader->msgNum)) )
+            if( (setChillerTemperatureResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -982,14 +977,14 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
             //
             // cast into the buffer, pick up the CRC
             //
-            psetChillerTemperature = reinterpret_cast<setChillerTemperature_t*>(m_buff);
+            psetChillerTemperatureResp = reinterpret_cast<setChillerTemperatureResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_setChillerTemperature_t,
-                        ntohs(psetChillerTemperature->crc), seqNum)) )
+            if( !(verifyMessage(len_setChillerTemperatureResp_t,
+                        ntohs(psetChillerTemperatureResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -1029,7 +1024,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
     bool                retVal  = false;
     uint16_t            seqNum;
     msgHeader_t*        pMsgHeader;
-    getChillerTemperature_t*    pgetChillerTemperature;
+    getChillerTemperatureResp_t*    pgetChillerTemperatureResp;
 
 
     //
@@ -1052,7 +1047,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(getChillerTemperature_t); i++)
+            for(uint16_t i = 0; i < sizeof(getChillerTemperatureResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -1063,7 +1058,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (getChillerTemperature != ntohs(pMsgHeader->msgNum)) )
+            if( (getChillerTemperatureResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -1077,14 +1072,14 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
             //
             // cast into the buffer, pick up the CRC
             //
-            pgetChillerTemperature = reinterpret_cast<getChillerTemperature_t*>(m_buff);
+            pgetChillerTemperatureResp = reinterpret_cast<getChillerTemperatureResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_getChillerTemperature_t,
-                        ntohs(pgetChillerTemperature->crc), seqNum)) )
+            if( !(verifyMessage(len_getChillerTemperatureResp_t,
+                        ntohs(pgetChillerTemperatureResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -1102,7 +1097,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
             //
             Parse_getChillerTemperatureResp(m_buff, temperature, &seqNum);
 
-            printf("found in packet temperature %f seqNumer 0x%02x\n", temperature, seqNum);
+            printf("found in packet temperature %f seqNumer 0x%02x\n", *temperature, seqNum);
             
             retVal  = true;
         } else
@@ -1125,7 +1120,7 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
     uint16_t            seqNum;
     uint16_t            result;
     msgHeader_t*        pMsgHeader;
-    enableTECs_t*    penableTECs;
+    enableTECsResp_t*    penableTECsResp;
 
 
     //
@@ -1148,7 +1143,7 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(enableTECs_t); i++)
+            for(uint16_t i = 0; i < sizeof(enableTECsResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -1159,7 +1154,7 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (enableTECs != ntohs(pMsgHeader->msgNum)) )
+            if( (enableTECsResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -1173,14 +1168,14 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
             //
             // cast into the buffer, pick up the CRC
             //
-            penableTECs = reinterpret_cast<enableTECs_t*>(m_buff);
+            penableTECsResp = reinterpret_cast<enableTECsResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_enableTECs_t,
-                        ntohs(penableTECs->crc), seqNum)) )
+            if( !(verifyMessage(len_enableTECsResp_t,
+                        ntohs(penableTECsResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -1221,7 +1216,7 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
     uint16_t            seqNum;
     uint16_t            result;
     msgHeader_t*        pMsgHeader;
-    disableTECs_t*    pdisableTECs;
+    disableTECsResp_t*    pdisableTECsResp;
 
 
     //
@@ -1244,7 +1239,7 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(disableTECs_t); i++)
+            for(uint16_t i = 0; i < sizeof(disableTECsResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -1255,7 +1250,7 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (disableTECs != ntohs(pMsgHeader->msgNum)) )
+            if( (disableTECsResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -1269,14 +1264,14 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
             //
             // cast into the buffer, pick up the CRC
             //
-            pdisableTECs = reinterpret_cast<disableTECs_t*>(m_buff);
+            pdisableTECsResp = reinterpret_cast<disableTECsResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_disableTECs_t,
-                        ntohs(pdisableTECs->crc), seqNum)) )
+            if( !(verifyMessage(len_disableTECsResp_t,
+                        ntohs(pdisableTECsResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -1317,7 +1312,7 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
     uint16_t            seqNum;
     uint16_t            result;
     msgHeader_t*        pMsgHeader;
-    startUpCmd_t*       pstartUpCmd;
+    startUpCmdResp_t*   pstartUpCmdResp;
 
 
     //
@@ -1340,7 +1335,7 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
             //
             // dump out what we got
             //
-            for(uint16_t i = 0; i < sizeof(startUpCmd_t); i++)
+            for(uint16_t i = 0; i < sizeof(startUpCmdResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
             }
@@ -1351,7 +1346,7 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
             // check got the expected message number
             //
             pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
-            if( (startUpCmd != ntohs(pMsgHeader->msgNum)) )
+            if( (startUpCmdResp != ntohs(pMsgHeader->msgNum)) )
             {
                 fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
                     __PRETTY_FUNCTION__, ntohs(pMsgHeader->msgNum));
@@ -1365,14 +1360,14 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
             //
             // cast into the buffer, pick up the CRC
             //
-            pstartUpCmd = reinterpret_cast<startUpCmd_t*>(m_buff);
+            pstartUpCmdResp = reinterpret_cast<startUpCmdResp_t*>(m_buff);
             
 
             //
             // verify seqNum and CRC
             //
-            if( !(verifyMessage(len_startUpCmd_t,
-                        ntohs(pstartUpCmd->crc), seqNum)) )
+            if( !(verifyMessage(len_startUpCmdResp_t,
+                        ntohs(pstartUpCmdResp->crc), seqNum)) )
             {
                 // TODO: drop the packet
                 fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
@@ -1648,7 +1643,7 @@ uint16_t controlProtocol::Make_getStatus(uint16_t Address, uint8_t* pBuff)
 
     #ifndef __RUNNING_ON_CONTROLLINO__
     printf("input bytes: ");
-    for(int i = 0; i < len_getStatus_t; i++)
+    for(unsigned int i = 0; i < len_getStatus_t; i++)
         printf("0x%X ", reinterpret_cast<uint8_t>(pBuff[i]));
     printf("\n");
     #else
