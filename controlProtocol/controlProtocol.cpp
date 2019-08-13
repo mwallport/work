@@ -11,6 +11,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 #ifdef __RUNNING_ON_CONTROLLINO__
 #else
 #include <arpa/inet.h>
@@ -519,9 +520,6 @@ bool controlProtocol::GetHumidity(uint16_t destAddress, float* humidity)
             }
 
 
-            //
-            // report the health 
-            //
             Parse_getHumidityResp(m_buff, humidity, &seqNum);
 
             printf("found in packet humidity %f, seqNumer 0x%02x\n", *humidity, seqNum);
@@ -1906,7 +1904,15 @@ void controlProtocol::Parse_getHumidityResp(uint8_t* m_buff, float* humidity, ui
     getHumidityResp_t* pResponse = reinterpret_cast<getHumidityResp_t*>(m_buff);
 
 
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // on uC use atof, sscanf support is dodgy
+    //
+    *humidity = atof(reinterpret_cast<char*>(pResponse->humidity));
+    #else
     sscanf(reinterpret_cast<char*>(pResponse->humidity), "%6f", humidity);
+    #endif
+
     *pSeqNum    = ntohs(pResponse->seqNum);
 }
 
@@ -2053,7 +2059,15 @@ void controlProtocol::Parse_getTECTemperatureResp(uint8_t* m_buff, float* temper
     getTECTemperatureResp_t* pResponse = reinterpret_cast<getTECTemperatureResp_t*>(m_buff);
 
 
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // on uC use atof, sscanf support is dodgy
+    //
+    *temperature = atof(reinterpret_cast<char*>(pResponse->temperature));
+    #else
     sscanf(reinterpret_cast<char*>(pResponse->temperature), "%f", temperature);
+    #endif
+
     *pSeqNum    = ntohs(pResponse->seqNum);
 }
 
@@ -2317,7 +2331,15 @@ void controlProtocol::Parse_getChillerTemperatureResp(uint8_t* m_buff, float* te
     getChillerTemperatureResp_t* pResponse = reinterpret_cast<getChillerTemperatureResp_t*>(m_buff);
 
 
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // on uC use atof, sscanf support is dodgy
+    //
+    *temperature = atof(reinterpret_cast<char*>(pResponse->temperature));
+    #else
     sscanf(reinterpret_cast<char*>(pResponse->temperature), "%f", temperature);
+    #endif
+
     *pSeqNum    = ntohs(pResponse->seqNum);
 }
 
