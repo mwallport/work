@@ -970,6 +970,18 @@ void handleMsgs()
         //
         switch( (cp.getMsgId()) )
         {
+            case startUpCmd:                // start the chiller, TECs, and sensor
+            {
+                handleStartUpCmd();
+                break;
+            }
+
+            case shutDownCmd:               // shutdown the chiller, TECs, and sensor
+            {
+                handleShutDownCmd();
+                break;
+            }
+
             case getStatusCmd:               // fetch the status of chiller, all TECs, and humidity sensor
             {
                 handleGetStatusCmd();
@@ -1243,6 +1255,144 @@ bool getMsgFromControl()
     }
 
     return(retVal);
+}
+
+
+
+void handleStartUpCmd()
+{
+    startUpCmd_t* pstartUpCmd = reinterpret_cast<startUpCmd_t*>(cp.m_buff);
+    uint16_t    respLength; 
+    uint16_t    result = 0;
+
+
+    //
+    // verify the received packet, here beause this is a startUpCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pstartUpCmd->address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessageCRC(len_startUpCmd_t, ntohs(pstartUpCmd->crc))) )
+        {
+            //
+            // start the TECs, chiller, sensor ...
+            //
+            if( (startUp()) )
+            {
+                result  = 1;
+            } else
+            {
+                #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed startUp");
+                Serial.flush();
+                #endif
+                result  = 0;
+            }
+
+            respLength = cp.Make_startUpCmdResp(cp.m_peerAddress, cp.m_buff,
+                result, htons(pstartUpCmd->seqNum)
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pstartUpCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.println(ntohs(pstartUpCmd->address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void handleShutDownCmd()
+{
+    shutDownCmd_t* pshutDownCmd = reinterpret_cast<shutDownCmd_t*>(cp.m_buff);
+    uint16_t    respLength; 
+    uint16_t    result = 0;
+
+
+    //
+    // verify the received packet, here beause this is a shutDownCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pshutDownCmd->address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessageCRC(len_shutDownCmd_t, ntohs(pshutDownCmd->crc))) )
+        {
+            //
+            // call shutDown()
+            //
+            shutDownSys(); // TODO: make this return bool
+            result  = 1;
+
+            respLength = cp.Make_shutDownCmdResp(cp.m_peerAddress, cp.m_buff,
+                result, htons(pshutDownCmd->seqNum)
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pshutDownCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.println(ntohs(pshutDownCmd->address.address));
+        Serial.flush();
+    #endif
+    }
 }
 
 
