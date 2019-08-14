@@ -104,8 +104,8 @@ void initSysStates(systemState& _sysStates)
 {
     _sysStates.chiller.online      = offline;
     _sysStates.chiller.state       = stopped;
-    _sysStates.chiller.temperature = 100;
-    _sysStates.chiller.setpoint    = 100;
+    _sysStates.chiller.temperature = 12.34;
+    _sysStates.chiller.setpoint    = -38.2;
     _sysStates.sensor.humidity     = 58;
     _sysStates.sensor.threshold    = HUMIDITY_THRESHOLD;
     _sysStates.sensor.online       = offline;
@@ -113,8 +113,8 @@ void initSysStates(systemState& _sysStates)
     {
         _sysStates.tec[i - 2].online          = offline;
         _sysStates.tec[i - 2].state           = stopped;
-        _sysStates.tec[i - 2].setpoint        = 100;
-        _sysStates.tec[i - 2].temperature     = 100;
+        _sysStates.tec[i - 2].setpoint        = -23.5;
+        _sysStates.tec[i - 2].temperature     = -10.4;
     }
 }
 

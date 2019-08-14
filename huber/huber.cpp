@@ -9,7 +9,7 @@
 #include <string.h>
 
 
-SoftwareSerial mySerial2(0, 1);
+//SoftwareSerial mySerial2(0, 1);
 
 
 //
@@ -37,8 +37,8 @@ debug dbg();
     //
     // set the configuration upon start
     //
-    mySerial2.begin(Speed);
-    //Serial2.begin(Speed, SERIAL_8N1);
+    //mySerial2.begin(Speed);
+    Serial2.begin(Speed, SERIAL_8N1);
 }
     
 
@@ -61,10 +61,10 @@ debug dbg();
 
 
     // class member Buff is filled in by the member functions
-    lenWritten = mySerial2.write(Buff);
-    mySerial2.flush();
-    //lenWritten = Serial2.write(Buff);
-    //Serial2.flush();
+    //lenWritten = mySerial2.write(Buff);
+    //mySerial2.flush();
+    lenWritten = Serial2.write(Buff);
+    Serial2.flush();
 
     if( (lenWritten != strlen(Buff)) )
     {
@@ -116,11 +116,11 @@ debug dbg();
             timedOut = true;
         } else
         {
-            //if( (Serial2.available()) )
-            if( (mySerial2.available()) )
+            if( (Serial2.available()) )
+            //if( (mySerial2.available()) )
             {
-                //Buff[bytes_read] = Serial2.read();
-                Buff[bytes_read] = mySerial2.read();
+                Buff[bytes_read] = Serial2.read();
+                //Buff[bytes_read] = mySerial2.read();
 
                 if( (!gotSTX) )
                 {

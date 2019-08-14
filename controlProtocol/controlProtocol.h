@@ -6,6 +6,7 @@
 
 #define __USING_LINUX_USB__
 #define __DEBUG_CTRL_PROTO__
+#define __DEBUG_CONTROL_PKT_TX__
 #define __DEBUG_CONTROL_PKT_RX__
 //#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
 
@@ -29,12 +30,12 @@ const   uint8_t     MAX_BUFF_LENGTH_CP      = 64;   // size of the work m_buffer
 const   uint8_t     COMMAND                 = '#';  // start packet byte for commands
 const   uint8_t     RESPONSE                = '!';  // start packet byte for responses
 const   uint8_t     MSG_NUM_OFFSET          = 4;
-
+const   uint8_t     EOT_BYTE                = 0x8F;
 
 
 typedef enum _msgID
 {
-    getStatusCmd,               // fetch the status of chiller, all TECs, and humidity sensor
+    getStatusCmd = 0x1000,               // fetch the status of chiller, all TECs, and humidity sensor
     getStatusResp,              // get status response
     setHumidityThreshold,       // get the humidity threshold
     setHumidityThresholdResp,   // get the humidity threshold response
@@ -44,8 +45,10 @@ typedef enum _msgID
     getHumidityResp,            // get current humidity and temperature response
     setTECTemperature,          // target TEC m_address and temp
     setTECTemperatureResp,      // target TEC m_address and temp response
+    commandFill0,
     getTECTemperature,          // target TEC m_address and temp
     getTECTemperatureResp,      // target TEC m_address and temp response
+    commndFill1,
     setChillerTemperature,      // target TEC m_address and temp
     setChillerTemperatureResp,  // target TEC m_address and temp response
     getChillerTemperature,      // target TEC m_address and temp

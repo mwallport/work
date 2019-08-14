@@ -125,7 +125,7 @@ controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress)
     TxResponse  = &controlProtocol::TxResponseSerial;
 
     #ifdef __RUNNING_ON_CONTROLLINO__
-    Serial2.begin(9600, SERIAL_8N1);
+    Serial1.begin(9600, SERIAL_8N1);
     #endif
 };
 
@@ -236,9 +236,9 @@ bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
             timedOut = true;
         } else
         {
-            if( (Serial2.available()) )
+            if( (Serial1.available()) )
             {
-                m_buff[bytes_read] = Serial2.read();
+                m_buff[bytes_read] = Serial1.read();
 
                 if( (!gotSTX) )
                 {
@@ -267,7 +267,7 @@ bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
             {
                 // TODO: too long, too short ?
                 // no data available, wait a bit before checking again
-                //Serial.println("Serial2 no bytes available");
+                //Serial.println("Serial1 no bytes available");
                 delay(100);
             }
         }
@@ -328,19 +328,26 @@ bool controlProtocol::TxResponseSerial(uint16_t length)
     uint8_t lenWritten;
 
     // class member Buff is filled in by the member functions
-    lenWritten = Serial2.write(m_buff, length);
-    Serial2.flush();
+    lenWritten = Serial1.write(m_buff, length);
+    Serial1.flush();
 
     if( (lenWritten != length) )
     {
         #ifdef __DEBUG_HUBER_ERROR__
+        Serial.flush();
         Serial.println("TxCommand failed");
         #endif
         retVal  = false;
-    #ifdef __DEBUG_PKT_TX__
+    #ifdef __DEBUG_CONTROL_PKT_TX__
     } else
     {
-        Serial.println("TxCommand success");
+        Serial.flush();
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.print(" sent: ");
+        for(int i = 0; i < length; i++)
+            Serial.print(reinterpret_cast<uint8_t>(m_buff[i]), HEX);
+        Serial.println("");
+        Serial.flush();
     #endif
     }
 
@@ -373,7 +380,7 @@ bool controlProtocol::GetStatus(uint16_t destAddress, uint16_t* humidityAlert,
         seqNum  = ntohs(pMsgHeader->seqNum);
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(8000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1515,7 +1522,7 @@ uint16_t controlProtocol::Make_startUpCmd(uint16_t Address, uint8_t* pBuff)
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(startUpCmd_t));
 }
@@ -1543,7 +1550,7 @@ uint16_t controlProtocol::Make_startUpCmdResp(uint16_t Address, uint8_t* pBuff, 
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(startUpCmdResp_t));
 }
@@ -1578,7 +1585,7 @@ uint16_t controlProtocol::Make_shutDownCmd(uint16_t Address, uint8_t* pBuff)
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(shutDownCmd_t));
 }
@@ -1606,7 +1613,7 @@ uint16_t controlProtocol::Make_shutDownCmdResp(uint16_t Address, uint8_t* pBuff,
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(shutDownCmdResp_t));
 }
@@ -1660,7 +1667,7 @@ uint16_t controlProtocol::Make_getStatus(uint16_t Address, uint8_t* pBuff)
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getStatus_t));
 }
@@ -1689,7 +1696,7 @@ uint16_t controlProtocol::Make_getStatusResp(uint16_t Address, uint8_t* pBuff, u
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getStatusResp_t));
 }
@@ -1729,7 +1736,7 @@ uint16_t controlProtocol::Make_getHumidityThreshold(uint16_t Address, uint8_t* p
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getHumidityThreshold_t));
 }
@@ -1755,7 +1762,7 @@ uint16_t controlProtocol::Make_getHumidityThresholdResp(uint16_t Address, uint8_
     msg->crc                = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getHumidityThresholdResp_t));
 }
@@ -1793,7 +1800,7 @@ uint16_t controlProtocol::Make_setHumidityThreshold(uint16_t Address, uint8_t* p
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(setHumidityThreshold_t));
 }
@@ -1821,7 +1828,7 @@ uint16_t controlProtocol::Make_setHumidityThresholdResp(uint16_t Address, uint8_
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(setHumidityThresholdResp_t));
 }
@@ -1856,7 +1863,7 @@ uint16_t controlProtocol::Make_getHumidity(uint16_t Address, uint8_t* pBuff)
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getHumidity_t));
 }
@@ -1893,7 +1900,7 @@ uint16_t controlProtocol::Make_getHumidityResp(uint16_t Address, uint8_t* pBuff,
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getHumidityResp_t));
 }
@@ -1948,7 +1955,7 @@ uint16_t controlProtocol::Make_setTECTemperature(uint16_t Address, uint8_t* pBuf
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(setTECTemperature_t));
 }
@@ -1975,7 +1982,7 @@ uint16_t controlProtocol::Make_setTECTemperatureResp(uint16_t Address, uint8_t* 
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(setTECTemperatureResp_t));
 }
@@ -2012,7 +2019,7 @@ uint16_t controlProtocol::Make_getTECTemperature(uint16_t Address, uint8_t* pBuf
 
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getTECTemperature_t));
 }
@@ -2049,7 +2056,7 @@ uint16_t controlProtocol::Make_getTECTemperatureResp(uint16_t Address, uint8_t* 
 
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getTECTemperatureResp_t));
 }
@@ -2091,7 +2098,7 @@ uint16_t controlProtocol::Make_enableTECs(uint16_t Address, uint8_t* pBuff)
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(enableTECs_t));
 }
@@ -2117,7 +2124,7 @@ uint16_t controlProtocol::Make_enableTECsResp(uint16_t Address, uint8_t* pBuff, 
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(enableTECsResp_t));
 }
@@ -2152,7 +2159,7 @@ uint16_t controlProtocol::Make_disableTECs(uint16_t Address, uint8_t* pBuff)
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(disableTECs_t));
 }
@@ -2178,7 +2185,7 @@ uint16_t controlProtocol::Make_disableTECsResp(uint16_t Address, uint8_t* pBuff,
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(disableTECsResp_t));
 }
@@ -2224,7 +2231,7 @@ uint16_t controlProtocol::Make_setChillerTemperature(uint16_t Address, uint8_t* 
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(setChillerTemperature_t));
 }
@@ -2249,7 +2256,7 @@ uint16_t controlProtocol::Make_setChillerTemperatureResp(uint16_t Address, uint8
     msg->crc    = htons(CRC);   // TODO: need htons ?
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(setChillerTemperatureResp_t));
 }
@@ -2285,7 +2292,7 @@ uint16_t controlProtocol::Make_getChillerTemperature(uint16_t Address, uint8_t* 
 
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getChillerTemperature_t));
 }
@@ -2321,7 +2328,7 @@ uint16_t controlProtocol::Make_getChillerTemperatureResp(uint16_t Address, uint8
 
 
     // put the end of transmission byte
-    msg->eot                = '\r';
+    msg->eot                = htons('\r');
 
     return(sizeof(getChillerTemperatureResp_t));
 }

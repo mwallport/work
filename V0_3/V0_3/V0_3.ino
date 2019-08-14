@@ -21,13 +21,14 @@ systemState sysStates;
 //
 // LCD display
 //
-const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+const int rs = 8, en = 10, d4 = 11, d5 = 12, d6 = 13, d7 = 42, rw=9;
+LiquidCrystal lcd(rs, rw, en, d4, d5, d6, d7);
 
 //
 // temperature himidity sensor
 //
 SHTSensor sht;
+
 
 //
 // huber chiller communication
@@ -76,7 +77,6 @@ void setup()
     //
     delay(1000);
     
-/*  TODO: put this back
     //
     // initialize board pins
     //
@@ -99,6 +99,7 @@ void setup()
     //
     updateLCD(initializing);
 
+/*  TODO: put this back
 
     //
     // verify communication with all devices
@@ -885,7 +886,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    if( (MAX_TEC_ADDRESS <= tecAddress) )
+    if( (MAX_TEC_ADDRESS >= tecAddress) )
     {
         if( (ms.SetTECTemp(tecAddress, temp)) )
         {
@@ -1474,7 +1475,7 @@ void handleGetStatusCmd()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet: ");
         Serial.println(ntohs(pgetStatus->address.address));
         Serial.flush();
     #endif
@@ -1710,8 +1711,17 @@ void handleSetTECTemperature()
             //
             // if the TECs addresses is out of range, send back failure
             //
-            sscanf(reinterpret_cast<char*>(psetTECTemperature->temperature), "%f", &setPoint);
+            //sscanf(reinterpret_cast<char*>(psetTECTemperature->temperature), "%f", &setPoint);
+            setPoint = atof(psetTECTemperature->temperature);
             tecAddress = ntohs(psetTECTemperature->tec_address);
+
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print(__PRETTY_FUNCTION__); Serial.print( " found setPoint:tecAddress ");
+            Serial.print(setPoint,2);
+            Serial.print(":");
+            Serial.println(tecAddress);
+            Serial.flush();
+            #endif
 
             if( (MAX_TEC_ADDRESS >= tecAddress) )
             {
@@ -1720,6 +1730,7 @@ void handleSetTECTemperature()
                     #ifdef __DEBUG_VIA_SERIAL__
                     Serial.print(__PRETTY_FUNCTION__); Serial.print( " success set temp for TEC: ");
                     Serial.println(tecAddress);
+                    Serial.flush();
                     #endif
                     result  = 1;
 
@@ -1748,6 +1759,8 @@ void handleSetTECTemperature()
                 Serial.println(tecAddress);
                 #endif
             }
+
+            Serial.flush();
             
             //
             // use the sysStates conentent to respond, send back the received seqNum
@@ -1817,7 +1830,7 @@ void handleGetTECTemperature()
             //
             tecAddress = ntohs(pgetTECTemperature->tec_address);
 
-            if( (MAX_TEC_ADDRESS <= tecAddress) )
+            if( (MAX_TEC_ADDRESS > tecAddress) )
             {
                 //
                 // send back failure
@@ -1828,6 +1841,9 @@ void handleGetTECTemperature()
                 Serial.print(__PRETTY_FUNCTION__); Serial.print( " ERROR: tec_address out of range: ");
                 Serial.println(tecAddress);
                 #endif
+            } else
+            {
+                result = 1;
             }
             
             //
@@ -1849,7 +1865,8 @@ void handleGetTECTemperature()
             #ifdef __DEBUG_VIA_SERIAL__
             } else
             {
-                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.print(__PRETTY_FUNCTION__); Serial.print(" sent response: ");
+                Serial.println(sysStates.tec[tecAddress - 2].temperature, 2);
                 Serial.flush();
             #endif
             }

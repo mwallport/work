@@ -12,9 +12,9 @@
 
 
 
-#define __DEBUG_MS_PKT_TX__
-#define __DEBUG_MS_PKT_RX__
-#define __DEBUG_MS_VIA_SERIAL__
+//#define __DEBUG_MS_PKT_TX__
+//#define __DEBUG_MS_PKT_RX__
+//#define __DEBUG_MS_VIA_SERIAL__
 
 
 
