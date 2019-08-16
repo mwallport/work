@@ -19,7 +19,6 @@ int main(int argc, char** argv)
     controlProtocol cpUSB(0, 1, "/dev/ttyUSB0"); // my address, peer address, usb file
 
 
-/*
     if( (cpUSB.StartUpCmd(1)) )
         printf("++++++++++++++++++++++++StartUpCmd good\n");
     else
@@ -53,13 +52,11 @@ int main(int argc, char** argv)
     else
         printf("---------------------failed to get humidity threshold\n");
     printf("\n\n");
-*/
 
-    if( (cpUSB.SetTECTemperature(1, 2, -23.4)) )            // problem - works and flakey/crashy
+    if( (cpUSB.SetTECTemperature(1, 2, -21.12)) )            // problem - works and flakey/crashy
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
-/*
 
     printf("\n\n");
     if( (cpUSB.GetTECTemperature(1, 2, &temperature)) ) // always sends back 0.00 (and is correct in pkt)
@@ -96,7 +93,7 @@ int main(int argc, char** argv)
         printf("+++++++++++++++++++++ShutDownCmd good\n");
     else
         printf("---------------------ShutDownCmd bad\n");
-*/
+
     return(0);
 }
 
