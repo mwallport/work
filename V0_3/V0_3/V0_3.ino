@@ -1752,8 +1752,8 @@ void handleSetTECTemperature()
 
             if( (MAX_TEC_ADDRESS >= tecAddress) )
             {
-                //if( (setTECTemp(tecAddress, setPoint)) )
-                if( (true) )
+                if( (setTECTemp(tecAddress, setPoint)) )
+                //if( (true) )
                 {
                     #ifdef __DEBUG_VIA_SERIAL__
                     Serial.print(__PRETTY_FUNCTION__); Serial.print( " success set temp for TEC: ");
@@ -1765,7 +1765,7 @@ void handleSetTECTemperature()
                     //
                     // update the TEC's set point temperature
                     //
-                    sysStates.tec[tecAddress - 2].setpoint = setPoint;
+                    sysStates.tec[(tecAddress - 2)].setpoint = setPoint;
 
                 } else
                 {
