@@ -78,11 +78,19 @@ typedef struct _chillerState
     float           temperature;    // current temperature
 } chillerState;
 
+const int MAX_HUMIDITY_SAMPLES  = 5;
+typedef struct _humiditySamples
+{
+    int    index;
+    float  sample[MAX_HUMIDITY_SAMPLES]; 
+} humiditySamples_t;
+
 typedef struct _humidityState
 {
-    runningStates   online;
-    float           humidity;
-    uint16_t        threshold;
+    runningStates       online;
+    float               humidity;
+    uint16_t            threshold;
+    humiditySamples_t   sampleData;
 } humidityState;
 
 typedef struct _tecState
@@ -100,21 +108,29 @@ typedef struct _systemState
     tecState        tec[MAX_TEC_ADDRESS];
 } systemState;
 
-void initSysStates(systemState& _sysStates)
+void initSysStates(systemState& states)
 {
-    _sysStates.chiller.online      = offline;
-    _sysStates.chiller.state       = stopped;
-    _sysStates.chiller.temperature = 12.34;
-    _sysStates.chiller.setpoint    = -38.2;
-    _sysStates.sensor.humidity     = 58;
-    _sysStates.sensor.threshold    = HUMIDITY_THRESHOLD;
-    _sysStates.sensor.online       = offline;
+    // chiller
+    states.chiller.online      = offline;
+    states.chiller.state       = stopped;
+    states.chiller.temperature = 12.34;
+    states.chiller.setpoint    = -38.2;
+
+    // sensor
+    states.sensor.humidity     = 58;
+    states.sensor.threshold    = HUMIDITY_THRESHOLD;
+    states.sensor.online       = offline;
+    states.sensor.sampleData.index = 0;
+    for(int i = 0; i < MAX_HUMIDITY_SAMPLES; i++)
+        states.sensor.sampleData.sample[i] = 0.0;
+
+    // tecs
     for(int i = 2; i < MAX_TEC_ADDRESS; i++)
     {
-        _sysStates.tec[i - 2].online          = offline;
-        _sysStates.tec[i - 2].state           = stopped;
-        _sysStates.tec[i - 2].setpoint        = -23.5;
-        _sysStates.tec[i - 2].temperature     = -10.4;
+        states.tec[i - 2].online          = offline;
+        states.tec[i - 2].state           = stopped;
+        states.tec[i - 2].setpoint        = -23.5;
+        states.tec[i - 2].temperature     = -10.4;
     }
 }
 

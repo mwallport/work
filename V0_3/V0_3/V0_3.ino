@@ -560,9 +560,29 @@ bool getStatus()
     if (sht.readSample())
     {
         //
-        // update the sysStates
+        // update the sysStates for humidity - take an average to smooth spikes
         //
-        sysStates.sensor.humidity   = sht.getHumidity();
+        sysStates.sensor.sampleData.index++;
+        sysStates.sensor.sampleData.index >= MAX_HUMIDITY_SAMPLES ? 0 : sysStates.sensor.sampleData.index;
+        sysStates.sensor.sampleData.sample[sysStates.sensor.sampleData.index] = sht.getHumidity();
+        sysStates.sensor.humidity = 0;  // this will eventually be an average when have enough samples
+        for(int i = 0; i < MAX_HUMIDITY_SAMPLES; i++)
+        {
+            if( ( 0 != sysStates.sensor.sampleData.sample[i]) )
+                sysStates.sensor.humidity += sysStates.sensor.sampleData.sample[i];
+            else
+            {
+                sysStates.sensor.humidity = 0;
+                break;
+            }
+        }
+
+        if( (0 != sysStates.sensor.humidity) )
+            // have enough samples, make an average
+            sysStates.sensor.humidity /= (float)MAX_HUMIDITY_SAMPLES;
+        else
+            // not enough samples - take the raw reading
+            sysStates.sensor.humidity = sysStates.sensor.sampleData.sample[sysStates.sensor.sampleData.index];
 
         if (sysStates.sensor.humidity > sysStates.sensor.threshold)
         {
@@ -1271,12 +1291,13 @@ void handleStartUpCmd()
     // verify the received packet, here beause this is a startUpCmdCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pstartUpCmd->address.address)) == cp.m_myAddress)
+    if( (ntohs(pstartUpCmd->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_startUpCmd_t, ntohs(pstartUpCmd->crc))) )
+        if( (cp.verifyMessage(len_startUpCmd_t,
+                    ntohs(pstartUpCmd->crc), ntohs(pstartUpCmd->eop))) )
         {
             //
             // start the TECs, chiller, sensor ...
@@ -1294,7 +1315,7 @@ void handleStartUpCmd()
             }
 
             respLength = cp.Make_startUpCmdResp(cp.m_peerAddress, cp.m_buff,
-                result, htons(pstartUpCmd->seqNum)
+                result, pstartUpCmd->header.seqNum
             );
 
             //
@@ -1326,7 +1347,7 @@ void handleStartUpCmd()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pstartUpCmd->address.address));
+        Serial.println(ntohs(pstartUpCmd->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1344,12 +1365,13 @@ void handleShutDownCmd()
     // verify the received packet, here beause this is a shutDownCmdCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pshutDownCmd->address.address)) == cp.m_myAddress)
+    if( (ntohs(pshutDownCmd->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_shutDownCmd_t, ntohs(pshutDownCmd->crc))) )
+        if( (cp.verifyMessage(len_shutDownCmd_t,
+                        ntohs(pshutDownCmd->crc), ntohs(pshutDownCmd->eop))) )
         {
             //
             // call shutDown()
@@ -1358,7 +1380,7 @@ void handleShutDownCmd()
             result  = 1;
 
             respLength = cp.Make_shutDownCmdResp(cp.m_peerAddress, cp.m_buff,
-                result, htons(pshutDownCmd->seqNum)
+                result, pshutDownCmd->header.seqNum
             );
 
             //
@@ -1390,7 +1412,7 @@ void handleShutDownCmd()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pshutDownCmd->address.address));
+        Serial.println(ntohs(pshutDownCmd->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1412,12 +1434,13 @@ void handleGetStatusCmd()
     // verify the received packet, here beause this is a getStatusCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pgetStatus->address.address)) == cp.m_myAddress)
+    if( (ntohs(pgetStatus->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_getStatus_t, ntohs(pgetStatus->crc))) )
+        if( (cp.verifyMessage(len_getStatus_t,
+                            ntohs(pgetStatus->crc), ntohs(pgetStatus->eop))) )
         {
             //
             // check all the TECs - if at least one is not running, report
@@ -1444,7 +1467,7 @@ void handleGetStatusCmd()
                 (sysStates.sensor.humidity > sysStates.sensor.threshold ? 1 : 0),   // humidity alert
                 (TECsRunning ? 1 : 0),                                              // TECs running
                 (sysStates.chiller.state = running ? 1 : 0),                        // chiller running
-                htons(pgetStatus->seqNum)
+                pgetStatus->header.seqNum
             );
 
             //
@@ -1476,7 +1499,7 @@ void handleGetStatusCmd()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet: ");
-        Serial.println(ntohs(pgetStatus->address.address));
+        Serial.println(ntohs(pgetStatus->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1494,12 +1517,13 @@ void handleSetHumidityThreshold()
     // verify the received packet, here beause this is a setHumidityThreshold
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(psetHumidityThreshold->address.address)) == cp.m_myAddress)
+    if( (ntohs(psetHumidityThreshold->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_setHumidityThreshold_t, ntohs(psetHumidityThreshold->crc))) )
+        if( (cp.verifyMessage(len_setHumidityThreshold_t,
+                            ntohs(psetHumidityThreshold->crc), ntohs(psetHumidityThreshold->eop))) )
         {
             //
             // pick up the new threshold
@@ -1515,7 +1539,7 @@ void handleSetHumidityThreshold()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_setHumidityThresholdResp(cp.m_peerAddress, cp.m_buff, 1, // success
-                htons(psetHumidityThreshold->seqNum)
+                psetHumidityThreshold->header.seqNum
             );
 
             //
@@ -1547,7 +1571,7 @@ void handleSetHumidityThreshold()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(psetHumidityThreshold->address.address));
+        Serial.println(ntohs(psetHumidityThreshold->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1564,12 +1588,13 @@ void handleGetHumidityThreshold()
     // verify the received packet, here beause this is a getHumidityThresholdCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pgetHumidityThreshold->address.address)) == cp.m_myAddress)
+    if( (ntohs(pgetHumidityThreshold->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_getHumidityThreshold_t, ntohs(pgetHumidityThreshold->crc))) )
+        if( (cp.verifyMessage(len_getHumidityThreshold_t,
+                            ntohs(pgetHumidityThreshold->crc), ntohs(pgetHumidityThreshold->eop))) )
         {
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " returning humidity threshold: ");
@@ -1581,7 +1606,7 @@ void handleGetHumidityThreshold()
             //
             respLength = cp.Make_getHumidityThresholdResp(cp.m_peerAddress, cp.m_buff,
                 sysStates.sensor.threshold,
-                htons(pgetHumidityThreshold->seqNum)
+                pgetHumidityThreshold->header.seqNum
             );
 
             //
@@ -1613,7 +1638,7 @@ void handleGetHumidityThreshold()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pgetHumidityThreshold->address.address));
+        Serial.println(ntohs(pgetHumidityThreshold->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1630,12 +1655,13 @@ void handleGetHumidity()
     // verify the received packet, here beause this is a getHumidityCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pgetHumidity->address.address)) == cp.m_myAddress)
+    if( (ntohs(pgetHumidity->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_getHumidity_t, ntohs(pgetHumidity->crc))) )
+        if( (cp.verifyMessage(len_getHumidity_t,
+                        ntohs(pgetHumidity->crc), ntohs(pgetHumidity->eop))) )
         {
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " returning humidity: ");
@@ -1647,7 +1673,7 @@ void handleGetHumidity()
             //
             respLength = cp.Make_getHumidityResp(cp.m_peerAddress, cp.m_buff,
                 sysStates.sensor.humidity,
-                htons(pgetHumidity->seqNum)
+                pgetHumidity->header.seqNum
             );
 
             //
@@ -1679,7 +1705,7 @@ void handleGetHumidity()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pgetHumidity->address.address));
+        Serial.println(ntohs(pgetHumidity->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1699,12 +1725,13 @@ void handleSetTECTemperature()
     // verify the received packet, here beause this is a setTECTemperatureCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(psetTECTemperature->address.address)) == cp.m_myAddress)
+    if( (ntohs(psetTECTemperature->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_setTECTemperature_t, ntohs(psetTECTemperature->crc))) )
+        if( (cp.verifyMessage(len_setTECTemperature_t,
+                            ntohs(psetTECTemperature->crc), ntohs(psetTECTemperature->eop))) )
         {
             //
             // pick up the new temperature
@@ -1712,7 +1739,7 @@ void handleSetTECTemperature()
             // if the TECs addresses is out of range, send back failure
             //
             //sscanf(reinterpret_cast<char*>(psetTECTemperature->temperature), "%f", &setPoint);
-            setPoint = atof(psetTECTemperature->temperature);
+            setPoint = atof(reinterpret_cast<char*>(psetTECTemperature->temperature));
             tecAddress = ntohs(psetTECTemperature->tec_address);
 
             #ifdef __DEBUG_VIA_SERIAL__
@@ -1725,7 +1752,8 @@ void handleSetTECTemperature()
 
             if( (MAX_TEC_ADDRESS >= tecAddress) )
             {
-                if( (setTECTemp(tecAddress, setPoint)) )
+                //if( (setTECTemp(tecAddress, setPoint)) )
+                if( (true) )
                 {
                     #ifdef __DEBUG_VIA_SERIAL__
                     Serial.print(__PRETTY_FUNCTION__); Serial.print( " success set temp for TEC: ");
@@ -1760,13 +1788,18 @@ void handleSetTECTemperature()
                 #endif
             }
 
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print(__PRETTY_FUNCTION__); Serial.print( " sending back response for TEC: ");
+            Serial.println(tecAddress);
+            #endif
+
             Serial.flush();
             
             //
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_setTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                tecAddress, result, htons(psetTECTemperature->seqNum)
+                tecAddress, result, psetTECTemperature->header.seqNum
             );
 
             //
@@ -1798,7 +1831,7 @@ void handleSetTECTemperature()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(psetTECTemperature->address.address));
+        Serial.println(ntohs(psetTECTemperature->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1818,12 +1851,13 @@ void handleGetTECTemperature()
     // verify the received packet, here beause this is a getTECTemperatureCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pgetTECTemperature->address.address)) == cp.m_myAddress)
+    if( (ntohs(pgetTECTemperature->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_getTECTemperature_t, ntohs(pgetTECTemperature->crc))) )
+        if( (cp.verifyMessage(len_getTECTemperature_t,
+                                ntohs(pgetTECTemperature->crc), ntohs(pgetTECTemperature->eop))) )
         {
             //
             // if the TECs addresses is out of range, send back failure
@@ -1850,7 +1884,8 @@ void handleGetTECTemperature()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                tecAddress, sysStates.tec[tecAddress - 2].temperature, htons(pgetTECTemperature->seqNum)
+                //tecAddress, sysStates.tec[tecAddress - 2].temperature, pgetTECTemperature->header.seqNum
+                tecAddress, -25.67, pgetTECTemperature->header.seqNum
             );
 
             //
@@ -1883,7 +1918,7 @@ void handleGetTECTemperature()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pgetTECTemperature->address.address));
+        Serial.println(ntohs(pgetTECTemperature->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1902,12 +1937,13 @@ void handleSetChillerTemperature()
     // verify the received packet, here beause this is a setChillerTemperatureCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(psetChillerTemperature->address.address)) == cp.m_myAddress)
+    if( (ntohs(psetChillerTemperature->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_setChillerTemperature_t, ntohs(psetChillerTemperature->crc))) )
+        if( (cp.verifyMessage(len_setChillerTemperature_t,
+                                ntohs(psetChillerTemperature->crc), ntohs(psetChillerTemperature->eop))) )
         {
             //
             // set the new chiller temperature
@@ -1929,7 +1965,7 @@ void handleSetChillerTemperature()
             }
 
             respLength = cp.Make_setChillerTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                result, htons(psetChillerTemperature->seqNum)
+                result, psetChillerTemperature->header.seqNum
             );
 
             //
@@ -1961,7 +1997,7 @@ void handleSetChillerTemperature()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(psetChillerTemperature->address.address));
+        Serial.println(ntohs(psetChillerTemperature->header.address.address));
         Serial.flush();
     #endif
     }
@@ -1979,18 +2015,19 @@ void handleGetChillerTemperature()
     // verify the received packet, here beause this is a getChillerTemperatureCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pgetChillerTemperature->address.address)) == cp.m_myAddress)
+    if( (ntohs(pgetChillerTemperature->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_getChillerTemperature_t, ntohs(pgetChillerTemperature->crc))) )
+        if( (cp.verifyMessage(len_getChillerTemperature_t,
+                                ntohs(pgetChillerTemperature->crc), ntohs(pgetChillerTemperature->eop))) )
         {
             //
             // chiller informaion is gotton during getStatus
             //
             respLength = cp.Make_getChillerTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                sysStates.chiller.temperature, htons(pgetChillerTemperature->seqNum)
+                sysStates.chiller.temperature, pgetChillerTemperature->header.seqNum
             );
 
             //
@@ -2022,7 +2059,7 @@ void handleGetChillerTemperature()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pgetChillerTemperature->address.address));
+        Serial.println(ntohs(pgetChillerTemperature->header.address.address));
         Serial.flush();
     #endif
     }
@@ -2040,12 +2077,13 @@ void handleEnableTECs()
     // verify the received packet, here beause this is a enableTECsCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(penableTECs->address.address)) == cp.m_myAddress)
+    if( (ntohs(penableTECs->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_enableTECs_t, ntohs(penableTECs->crc))) )
+        if( (cp.verifyMessage(len_enableTECs_t,
+                                ntohs(penableTECs->crc), ntohs(penableTECs->eop))) )
         {
             //
             // chiller informaion is gotton during getStatus
@@ -2063,7 +2101,7 @@ void handleEnableTECs()
             }
 
             respLength = cp.Make_enableTECsResp(cp.m_peerAddress, cp.m_buff,
-                result, htons(penableTECs->seqNum)
+                result, penableTECs->header.seqNum
             );
 
             //
@@ -2095,7 +2133,7 @@ void handleEnableTECs()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(penableTECs->address.address));
+        Serial.println(ntohs(penableTECs->header.address.address));
         Serial.flush();
     #endif
     }
@@ -2113,12 +2151,13 @@ void handleDisableTECs()
     // verify the received packet, here beause this is a disableTECsCmd
     // check this is my address and the CRC is correct
     //
-    if( (ntohs(pdisableTECs->address.address)) == cp.m_myAddress)
+    if( (ntohs(pdisableTECs->header.address.address)) == cp.m_myAddress)
     {
         //
         // verify the CRC
         //
-        if( (cp.verifyMessageCRC(len_disableTECs_t, ntohs(pdisableTECs->crc))) )
+        if( (cp.verifyMessage(len_disableTECs_t,
+                                ntohs(pdisableTECs->crc), ntohs(pdisableTECs->eop))) )
         {
             //
             // chiller informaion is gotton during getStatus
@@ -2136,7 +2175,7 @@ void handleDisableTECs()
             }
 
             respLength = cp.Make_disableTECsResp(cp.m_peerAddress, cp.m_buff,
-                result, htons(pdisableTECs->seqNum)
+                result, pdisableTECs->header.seqNum
             );
 
             //
@@ -2168,7 +2207,7 @@ void handleDisableTECs()
     } else
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
-        Serial.println(ntohs(pdisableTECs->address.address));
+        Serial.println(ntohs(pdisableTECs->header.address.address));
         Serial.flush();
     #endif
     }

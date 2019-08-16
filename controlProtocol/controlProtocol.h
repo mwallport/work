@@ -30,12 +30,12 @@ const   uint8_t     MAX_BUFF_LENGTH_CP      = 64;   // size of the work m_buffer
 const   uint8_t     COMMAND                 = '#';  // start packet byte for commands
 const   uint8_t     RESPONSE                = '!';  // start packet byte for responses
 const   uint8_t     MSG_NUM_OFFSET          = 4;
-const   uint8_t     EOT_BYTE                = 0x8F;
+const   uint16_t    EOP_VAL                 = 0x0D; // end of transmission val
 
 
 typedef enum _msgID
 {
-    getStatusCmd = 0x1000,               // fetch the status of chiller, all TECs, and humidity sensor
+    getStatusCmd,               // fetch the status of chiller, all TECs, and humidity sensor
     getStatusResp,              // get status response
     setHumidityThreshold,       // get the humidity threshold
     setHumidityThresholdResp,   // get the humidity threshold response
@@ -45,10 +45,8 @@ typedef enum _msgID
     getHumidityResp,            // get current humidity and temperature response
     setTECTemperature,          // target TEC m_address and temp
     setTECTemperatureResp,      // target TEC m_address and temp response
-    commandFill0,
     getTECTemperature,          // target TEC m_address and temp
     getTECTemperatureResp,      // target TEC m_address and temp response
-    commndFill1,
     setChillerTemperature,      // target TEC m_address and temp
     setChillerTemperatureResp,  // target TEC m_address and temp response
     getChillerTemperature,      // target TEC m_address and temp
@@ -71,28 +69,27 @@ typedef struct _Address
 
 
 typedef uint16_t CRC;
+typedef uint16_t EOP;
 
 
 typedef struct _msgHeader
 {
-    uint16_t    control;        // '#' or '!' - character
+    uint8_t    control;        // '#' or '!' - character
+    uint8_t    length;         // total packet length, byte 0 .. n
     Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getStatusMsg message
+    uint8_t    seqNum;         // uint16_t
+    uint8_t    msgNum;         // uint16_t - this will be the getStatusMsg message
 } msgHeader_t;
 
 
 typedef struct _getStatus
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getStatusMsg message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getStatus_t;
 // TODO: better way to exclude crc legnth?
-const unsigned int len_getStatus_t    = sizeof(getStatus_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getStatus_t    = sizeof(getStatus_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _statusReport
@@ -104,296 +101,227 @@ typedef struct _statusReport
 
 typedef struct _getStatusResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getStatusMsgResp message
-    statusReport_t status;        // the status
+    msgHeader_t header;
+    statusReport_t status;      // the status
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getStatusResp_t;
-const unsigned int len_getStatusResp_t    = sizeof(getStatusResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getStatusResp_t  = sizeof(getStatusResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _setHumidityThreshold
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the setHumidityThreshold message
+    msgHeader_t header;
     uint16_t    threshold;      // uint16_6 - humidity threshold - TODO: make this ASCII char ?
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } setHumidityThreshold_t;
-const unsigned int len_setHumidityThreshold_t    = sizeof(setHumidityThreshold_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_setHumidityThreshold_t    = sizeof(setHumidityThreshold_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _setHumidityThresholdResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the setHumidityThresholdResp message
+    msgHeader_t header;
     uint16_t    result;         // 0 - failed to set; 1 - successfully set
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } setHumidityThresholdResp_t;
-const unsigned int len_setHumidityThresholdResp_t    = sizeof(setHumidityThresholdResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_setHumidityThresholdResp_t    = sizeof(setHumidityThresholdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getHumidityThreshold
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getHumidityThreshold message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getHumidityThreshold_t;
-const unsigned int len_getHumidityThreshold_t    = sizeof(getHumidityThreshold_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getHumidityThreshold_t    = sizeof(getHumidityThreshold_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getHumidityThresholdResp
 {
-    uint16_t    control;            // '#' or '!' - character
-    Address_t   address;            // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;             // uint16_t
-    uint16_t    msgNum;             // uint16_t - this will be the getHumidityThreshold message
+    msgHeader_t header;
     uint16_t    threshold;          // uint16_6 - current humidity threshold - TODO: make this ASCII char?
     CRC         crc;                // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getHumidityThresholdResp_t;
-const unsigned int len_getHumidityThresholdResp_t    = sizeof(getHumidityThresholdResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getHumidityThresholdResp_t    = sizeof(getHumidityThresholdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getHumidity
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getHumidityThreshold message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getHumidity_t;
-const unsigned int len_getHumidity_t    = sizeof(getHumidity_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getHumidity_t    = sizeof(getHumidity_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getHumidityResp
 {
-    uint16_t    control;    // '#' or '!' - character
-    Address_t   address;    // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;     // uint16_t
-    uint16_t    msgNum;     // uint16_t - this will be the getHumidityThreshold message
+    msgHeader_t header;
     uint8_t     humidity[MAX_HUMIDITY_LENGTH];    // float in 32 bits
     CRC         crc;        // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getHumidityResp_t;
-const unsigned int len_getHumidityResp_t    = sizeof(getHumidityResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getHumidityResp_t    = sizeof(getHumidityResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _setTECTemperature
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the setTECTemperature message
+    msgHeader_t header;
     uint16_t    tec_address;    // uint16_6 - TEC address
     uint8_t     temperature[MAX_TEC_TEMP_LENGH];    // float in 32 bits
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } setTECTemperature_t;
-const unsigned int len_setTECTemperature_t    = sizeof(setTECTemperature_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_setTECTemperature_t    = sizeof(setTECTemperature_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _setTECTemperatureResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the setTECTemperature message
+    msgHeader_t header;
     uint16_t    tec_address;    // uint16_6 - TEC address
     uint16_t    result;         // 0 - fail ; 1 - success
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } setTECTemperatureResp_t;
-const unsigned int len_setTECTemperatureResp_t    = sizeof(setTECTemperatureResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_setTECTemperatureResp_t    = sizeof(setTECTemperatureResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getTECTemperature
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     uint16_t    tec_address;    // uint16_6 - TEC address
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getTECTemperature_t;
-const unsigned int len_getTECTemperature_t    = sizeof(getTECTemperature_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getTECTemperature_t    = sizeof(getTECTemperature_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getTECTemperatureResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     uint16_t    tec_address;    // uint16_6 - TEC address
     uint8_t     temperature[MAX_TEC_TEMP_LENGH];    // float in 32 bits
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getTECTemperatureResp_t;
-const unsigned int len_getTECTemperatureResp_t    = sizeof(getTECTemperatureResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getTECTemperatureResp_t    = sizeof(getTECTemperatureResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _enableTECs
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the enableTECs message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } enableTECs_t;
-const unsigned int len_enableTECs_t    = sizeof(enableTECs_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_enableTECs_t    = sizeof(enableTECs_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _enableTECsResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the enableTECs message
+    msgHeader_t header;
     uint16_t    result;         // 0 - fail ; 1 - success
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } enableTECsResp_t;
-const unsigned int len_enableTECsResp_t    = sizeof(enableTECsResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_enableTECsResp_t    = sizeof(enableTECsResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _disableTECs
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the enableTECs message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } disableTECs_t;
-const unsigned int len_disableTECs_t    = sizeof(disableTECs_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_disableTECs_t    = sizeof(disableTECs_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _disableTECsResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the enableTECs message
+    msgHeader_t header;
     uint16_t    result;         // 0 - fail ; 1 - success
     CRC         crc;            // 16 bit CRC over the packet } disableTECsResp_t;
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } disableTECsResp_t;
-const unsigned int len_disableTECsResp_t    = sizeof(disableTECsResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_disableTECsResp_t    = sizeof(disableTECsResp_t) - sizeof(CRC) - sizeof(EOP);
 
 typedef struct _setChillerTemperature
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the setTECTemperature message
-    uint8_t     temperature[MAX_CHILLER_TEMP_LENGH];    // float in 32 bits
+    msgHeader_t header;
+    uint16_t    temperature[MAX_CHILLER_TEMP_LENGH];    // float in 32 bits
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } setChillerTemperature_t;
-const unsigned int len_setChillerTemperature_t    = sizeof(setChillerTemperature_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_setChillerTemperature_t    = sizeof(setChillerTemperature_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _setChillerTemperatureResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the setTECTemperature message
+    msgHeader_t header;
     uint16_t    result;         // 0 - fail ; 1 - success
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } setChillerTemperatureResp_t;
-const unsigned int len_setChillerTemperatureResp_t = sizeof(setChillerTemperatureResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_setChillerTemperatureResp_t = sizeof(setChillerTemperatureResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getChillerTemperature
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getChillerTemperature_t;
-const unsigned int len_getChillerTemperature_t = sizeof(getChillerTemperature_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getChillerTemperature_t = sizeof(getChillerTemperature_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _getChillerTemperatureResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     uint8_t     temperature[MAX_CHILLER_TEMP_LENGH];    // float in 32 bits
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } getChillerTemperatureResp_t;
-const unsigned int len_getChillerTemperatureResp_t = sizeof(getChillerTemperatureResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_getChillerTemperatureResp_t = sizeof(getChillerTemperatureResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _startUpCmd
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } startUpCmd_t;
-const unsigned int len_startUpCmd_t = sizeof(startUpCmd_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_startUpCmd_t = sizeof(startUpCmd_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _startUpCmdResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     uint16_t    result;         // 0 - failed to set; 1 - successfully set
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } startUpCmdResp_t;
-const unsigned int len_startUpCmdResp_t = sizeof(startUpCmdResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_startUpCmdResp_t = sizeof(startUpCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _shutDownCmd
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } shutDownCmd_t;
-const unsigned int len_shutDownCmd_t = sizeof(shutDownCmd_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_shutDownCmd_t = sizeof(shutDownCmd_t) - sizeof(CRC) - sizeof(EOP);
 
 
 typedef struct _shutDownCmdResp
 {
-    uint16_t    control;        // '#' or '!' - character
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
-    uint16_t    seqNum;         // uint16_t
-    uint16_t    msgNum;         // uint16_t - this will be the getTECTemperature message
+    msgHeader_t header;
     uint16_t    result;         // 0 - failed to set; 1 - successfully set
     CRC         crc;            // 16 bit CRC over the packet
-    uint16_t    eot;            // end of transmission character/byte
+    EOP         eop;            // end of transmission character/byte
 } shutDownCmdResp_t;
-const unsigned int len_shutDownCmdResp_t = sizeof(shutDownCmdResp_t) - sizeof(CRC) - sizeof(uint16_t);
+const uint16_t len_shutDownCmdResp_t = sizeof(shutDownCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
 
@@ -456,9 +384,11 @@ class controlProtocol
     int         m_fd;                           // for the USB port
 
     bool        openUSBPort(const char*);
-    bool        verifyMessage(uint16_t, uint16_t, uint16_t);
+    bool        verifyMessage(uint16_t, uint16_t, uint16_t, EOP);
+    bool        verifyMessage(uint16_t, uint16_t, EOP);
     bool        verifyMessageSeqNum(uint16_t, uint16_t);
     bool        verifyMessageCRC(uint16_t, uint16_t);
+    bool        verifyMessageLength(EOP);
     uint16_t    getMsgId();
 
     uint16_t    Make_startUpCmd(uint16_t, uint8_t*);
