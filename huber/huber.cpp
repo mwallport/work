@@ -15,7 +15,7 @@
 //
 // class definitions
 //
-huber::huber(uint16_t Rx, uint16_t Tx, uint32_t Speed)
+huber::huber(uint32_t Speed)
  : chillerInitialized(false)
 {
 #ifdef __DEBUG_FUNC_HUBER__

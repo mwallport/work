@@ -87,7 +87,7 @@ typedef struct _statsBlock
 class meerstetterRS485
 {
     public:
-    meerstetterRS485(uint32_t, uint32_t);
+    meerstetterRS485(uint32_t);
     virtual ~ meerstetterRS485();
 
     void MePort_SendByte(int8_t in, MePort_SB FirstLast);

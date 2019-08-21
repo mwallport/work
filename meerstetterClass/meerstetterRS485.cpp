@@ -67,15 +67,13 @@ int meerstetterRS485::Ctr;
 
 
 // constructor
-meerstetterRS485::meerstetterRS485(uint32_t _SSerialRX, uint32_t _SSerialTX)
-// : RS485Serial(_SSerialRX, _SSerialTX)
+meerstetterRS485::meerstetterRS485(uint32_t Speed)
 {
     memset(reinterpret_cast<void*>(&stats), '\0', sizeof(stats));
     MeInt_QueryRcvPayload = MeFrame_RcvFrame.Payload;
-    //RS485Serial.begin(9600);
 
     Controllino_RS485Init();
-    Serial3.begin(9600);
+    Serial3.begin(Speed);
     Controllino_RS485RxEnable();
 }
 

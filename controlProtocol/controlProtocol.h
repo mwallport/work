@@ -4,11 +4,11 @@
 
 #include <stdint.h>
 
-#define __USING_LINUX_USB__
+//#define __USING_LINUX_USB__
 #define __DEBUG_CTRL_PROTO__
 #define __DEBUG_CONTROL_PKT_TX__
 #define __DEBUG_CONTROL_PKT_RX__
-//#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
+#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
 
 #ifdef __RUNNING_ON_CONTROLLINO__
 #include "./util.h"
@@ -55,10 +55,11 @@ typedef enum _msgID
     enableTECsResp,             // turn on all TECs response
     disableTECs,                // turn off all TECs
     disableTECsResp,            // turn off all TECs response
-    startUpCmd,                    // start up TODO: make this
-    startUpCmdResp,                // reponse  TODO: make this
-    shutDownCmd,                   // shutdown TODO: make this
-    shutDownCmdResp                // shutdown response    TODO: make this
+    startUpCmd,                 // start up
+    startUpCmdResp,             // reponse
+    shutDownCmd,                // shutdown
+    shutDownCmdResp,            // shutdown response
+    NACK                        // command not supported
 } msgID;
 
 
@@ -324,6 +325,14 @@ typedef struct _shutDownCmdResp
 const uint16_t len_shutDownCmdResp_t = sizeof(shutDownCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
+typedef struct _NACK
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} NACK_t;
+const uint16_t len_NACK_t = sizeof(NACK_t) - sizeof(CRC) - sizeof(EOP);
+
 
 class controlProtocol
 {
@@ -345,8 +354,8 @@ class controlProtocol
     bool    doTxCommand(uint16_t length) { return( (this->*TxCommand)(length) ); };
     bool    doRxResponse(uint16_t timeout) { return( (this->*RxResponse)(timeout) ); };
 
-    controlProtocol(uint16_t, uint16_t);                // serial : m_myAddress, m_peerAddress
-    controlProtocol(uint16_t, uint16_t, const char*);   // USB : m_myAddress, m_peerAddress, USB file
+    controlProtocol(uint16_t, uint16_t, uint32_t);                // serial : m_myAddress, m_peerAddress
+    controlProtocol(uint16_t, uint16_t, const char*, uint32_t);   // USB : m_myAddress, m_peerAddress, USB file
     ~controlProtocol();
     
     bool    StartUpCmd(uint16_t);
@@ -383,7 +392,7 @@ class controlProtocol
     uint8_t     m_buff[MAX_BUFF_LENGTH_CP + 1]; // work m_buffer used by all functions
     int         m_fd;                           // for the USB port
 
-    bool        openUSBPort(const char*);
+    bool        openUSBPort(const char*, uint32_t);
     bool        verifyMessage(uint16_t, uint16_t, uint16_t, EOP);
     bool        verifyMessage(uint16_t, uint16_t, EOP);
     bool        verifyMessageSeqNum(uint16_t, uint16_t);
@@ -438,5 +447,7 @@ class controlProtocol
     uint16_t    Make_getChillerTemperature(uint16_t, uint8_t*);
     uint16_t    Make_getChillerTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
     void        Parse_getChillerTemperatureResp(uint8_t*, float*, uint16_t*);
+
+    uint16_t    Make_NACK(uint16_t, uint8_t*, uint16_t);    // always for command not supported/recognized
 };
 #endif

@@ -29,22 +29,21 @@ LiquidCrystal lcd(rs, rw, en, d4, d5, d6, d7);
 //
 SHTSensor sht;
 
-
 //
 // huber chiller communication
 //
-huber chiller(1, 0, 9600);
+huber chiller(9600);
 
 //
 // meerstetter communication
 //
-meerstetterRS485 ms(14, 15);
+meerstetterRS485 ms(9600);
 
 //
 // control PC communication
 // assuming they will be address 0 and this program will be address 1
 //
-controlProtocol cp(1, 0);  // my address is 1, control address is 0
+controlProtocol cp(1, 0, 9600);  // my address is 1, control address is 0
 
 
 //
@@ -59,24 +58,32 @@ unsigned long debounceDelay = 50;   // the debounce time; increase if the output
 
 void setup()
 {
+    
+    //
+    // initialize the system states /stats - these are
+    // used to hold temperatures, humidity, etc. and
+    // used in responses to getStatusCmd from control
+    // and holds the LCD messages
+    //
     initSysStates(sysStates);
 
     //
-    // this must appear before the Serial.begin(...) else Serial gets clipped
+    // this must appear before the Serial.begin(...), else Serial gets clipped
     //
-    #ifdef __DEBUG_VIA_SERIAL__
+    #if defined __DEBUG_VIA_SERIAL__ || defined __DEBUG2_VIA_SERIAL__
     Wire.begin();
     Serial.begin(9600);
     #else
     Wire.begin();
     #endif
 
-
     //
     // let the Serial port settle 
     //
     delay(1000);
-    
+
+    Serial.println(" -------------------------> setup() <-----------------------"); Serial.flush();
+
     //
     // initialize board pins
     //
@@ -86,25 +93,15 @@ void setup()
     digitalWrite(LED_BUILTIN, ledState);        // turn off LED on board
     digitalWrite(PIN_HW_ENABLE_n, ledState);    // turn off external LED
 
-
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.print(__PRETTY_FUNCTION__);
-    Serial.println(" doing updateLCD(initializing)");
-    Serial.flush();
-    #endif
-    
     //
     // paint 'Initializing' on the LCD
     //
-    updateLCD(initializing);
-
-/*  TODO: put this back
+    manageLCD();
 
     //
     // verify communication with all devices
     //
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.print(__PRETTY_FUNCTION__);
     Serial.println(" checking allDevicesPresent()");
@@ -115,19 +112,13 @@ void setup()
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.println("---------------------------------------");
         Serial.print(__PRETTY_FUNCTION__);
-        Serial.println(" all devices not present, shutting down");
+        Serial.println(" WARNING: all devices not present, shutting down");
         #endif
 
         //
         // stop the chiller and the TECs and die
         //
         shutDownSys();
-
-        //
-        // TODO: die like this ?
-        // update the LCD w/ "ALL DEVICES NOT PRESET", then die ?
-        //
-        updateLCDAndDie(notAllDevicesPresent);
 
     #ifdef __DEBUG_VIA_SERIAL__
     } else
@@ -156,7 +147,6 @@ void setup()
         #endif
 
         shutDownSys();
-        updateLCDAndDie(chillerFailure);    // call this last
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
@@ -165,25 +155,26 @@ void setup()
         Serial.flush();
     #endif
     }
-*/
+
+    // set the LCD to ready
+    sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Ready;
 }
 
 
 void loop()
 { 
-/* TODO: put this  back
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.print(__PRETTY_FUNCTION__);
     Serial.println(" top of loop()");
     #endif
 
+    manageLCD();
 
     //
-    // getStatus will update LCD w/ what is 'bad', then shutDownAndDie()
-    // will loop forever leaving the LCD update with what is 'bad'
+    // getStatus will update LCD w/ what is 'bad', then shutDownSys()
     //
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.print(__PRETTY_FUNCTION__);
     Serial.println(" doing getStatus");
@@ -192,11 +183,11 @@ void loop()
     {
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.print(__PRETTY_FUNCTION__);
-        Serial.println(" got bad status, shutting down");
+        Serial.println(" WARNING: got bad status, shutting down");
         #endif
 
-        shutDownAndDie();
-    #ifdef __DEBUG_VIA_SERIAL__
+        shutDownSys();
+    #ifdef __DEBUG2_VIA_SERIAL__
     } else
     {
         Serial.print(__PRETTY_FUNCTION__);
@@ -206,47 +197,25 @@ void loop()
 
 
     //
-    // throttle loop() to run 1x per second
-    //
-    // the lcd_currentHumidityAndThreshold delays for 3 seconds, use this
-    // delay to throttle the loop() - and always show humidity
-    //
-    updateLCD(currentHumidityAndThreshold);   
-
-
-    //
     // take commands from the
     // - the switch
     // - the controlling PC software
     //
-*/
     handleMsgs();
 }
-
-
-void lcd_chillerAlertInit()
-{
-    lcd.display();
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("* CHILLER PUMP *");
-    lcd.setCursor(0,1);
-    lcd.print("  MUST BE ON!!! ");
-}
-
 
 
 int8_t switchOps()
 {
     int8_t retVal   = 0;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
     // TODO: get rid of this
-    return(retVal);
+    //return(retVal);
 
     //
     // read the state of the switch into a local variable:
@@ -281,7 +250,6 @@ int8_t switchOps()
                 } else
                 {
                     ledState = LOW;
-                    updateLCD(chillerAlertInit);
                     retVal  = -1;  // switched off
                 }
             }
@@ -304,7 +272,7 @@ int8_t switchOps()
 // all LCD calls are void, no way to tell if the LCD is up .. 
 bool startLCD()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -314,49 +282,8 @@ bool startLCD()
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("   deftDevise");
-    lcd.setCursor(0,1);
-    lcd.print("Firmware ver 1.0");
 
     return(true);
-}
-
-
-// -----------------------------------------
-// print a message to the LCD and enter infinite loop (die)
-// does not return
-//
-void updateLCD(uint32_t facesIndex)
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    //
-    // call the LCD display function
-    //
-    lcdFaces[facesIndex]();
-}
-
-
-void updateLCDAndDie(uint32_t facesIndex)
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    //
-    // update the LCD screen
-    //
-    updateLCD(facesIndex);
-
-
-    //
-    // and die
-    //
-    while(true) { delay(1000); }    // keep LCD display on and do nothing
 }
 
 
@@ -364,7 +291,7 @@ bool startSHTSensor()
 {
     bool retVal = false;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -372,6 +299,10 @@ bool startSHTSensor()
 
     if( (sht.init()) && (sht.setAccuracy(SHTSensor::SHT_ACCURACY_MEDIUM)) ) // only supported by SHT3x
         retVal  = true;
+    else
+        // update the LCD..
+        sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]  = sensor_Failure;
+        
 
     return(retVal);
 }
@@ -384,25 +315,50 @@ bool startSHTSensor()
 // - Meersteters are up
 // - chiller is running
 //
+//  call initSysStates(sysStates) to :
+// 1. reset/clear-out all of the system stats
+// 2. perhaps some 'things' have been fixed after a shutDownCmd and
+// before this startUpCmd()
+// 3. failures will be accrued during getStats(), etc.
+// 4. this is a way to reset the LCD screen
+//
 bool startUp()
 {
-    bool retVal = false;    
+    bool retVal = true;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
 
+    // reset all the system stats including the LCD content
+    initSysStates(sysStates);
+
     //
     // TODO: chiller is always on - but send the command anyway
-    // - start the TECs
     //
-    if( (startSHTSensor()) && (startChiller()) && (startTECs()) )
-    {
-        retVal = true;
-    }
+    // try to start everything
+    //
+    if( !(startSHTSensor()) )
+        retVal  = false;
+
+    if( !(startChiller()) )
+        retVal  = false;
+
+    if( !(startTECs()) )
+        retVal = false;
+
+    if( !(startLCD()) )
+        retVal = false;
     
+    if( (retVal) )
+    {
+        // set the LCD to running
+        sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Running;
+    }
+
     return(retVal);
 }
 
@@ -419,11 +375,12 @@ bool startUp()
 //
 bool getStatus()
 {
+    bool    retVal      = true;
     bool    TECsOnline  = true;
     bool    TECsRunning = true;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -433,8 +390,6 @@ bool getStatus()
     //
     // if ChillerPresent is true - chiller is online and running
     //
-    sysStates.chiller.state     = running;
-    sysStates.chiller.online    = online;
     if( !(chiller.ChillerRunning()) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
@@ -445,7 +400,8 @@ bool getStatus()
         //
         // update the chilller state to stopped (as it is not running)
         //
-        sysStates.chiller.state    = stopped;
+        sysStates.chiller.state                         = stopped;
+        sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]   = chiller_Stopped;
 
         //
         // verify the chiller is on-line
@@ -454,29 +410,30 @@ bool getStatus()
         {
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__);
-            Serial.println(" ERROR: chiller not present");
+            Serial.println(" ERROR: chiller not on-line");
             Serial.flush();
             #endif
 
-            sysStates.chiller.online = offline;
+            sysStates.chiller.online                        = offline;
+            sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]   = chiller_ComFailure;
         } else
         {
-            sysStates.chiller.online = online;
+            sysStates.chiller.online                        = online;
+            sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]   = no_Status;
         }
 
-        //
-        // update the LCD to show the same
-        //
-        updateLCD(chillerFailure);
+        retVal = false;
 
-        //
-        // keep the LCD as bad chiller status
-        //
-        // TODO: put this back
-        //return(false);
-        return(true);
     } else
     {
+        // update sysStates
+        sysStates.chiller.state     = running;
+        sysStates.chiller.online    = online;
+
+        // update the LCD
+        sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]   = chiller_Running,
+        sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]   = no_Status;
+
         //
         // chiller.ChillerRunning does the (G)eneral command which fetches
         // the current set point and internal and external temperatures
@@ -497,8 +454,8 @@ bool getStatus()
     //
     for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
     {
-        sysStates.tec[Address - 2].state = running;
-        sysStates.tec[Address - 2].online = online;
+        sysStates.tec[(Address - 2)].state          = running;
+        sysStates.tec[(Address - 2)].online         = online;
 
         if( !(ms.TECRunning(Address)) )
         {
@@ -508,8 +465,12 @@ bool getStatus()
             Serial.flush();
             #endif
 
+            retVal = false;
+
             TECsRunning = false;
-            sysStates.tec[Address - 2].state = stopped;
+
+            // update sysStates
+            sysStates.tec[(Address - 2)].state = stopped;
 
             //
             // check if we can still communicate with TECs
@@ -518,58 +479,70 @@ bool getStatus()
             {
                 #ifdef __DEBUG_VIA_SERIAL__
                 Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR:TEC ");
-                Serial.print(Address, DEC); Serial.println(" is offline");
+                Serial.print(Address, DEC); Serial.println(" is not on-line");
                 Serial.flush();
                 #endif
 
                 TECsOnline  = false;
-                sysStates.tec[Address - 2].online = offline;
+
+                // update the sysStates
+                sysStates.tec[(Address - 2)].online = offline;
             }
         } else
         {
-            sysStates.tec[Address - 2].state    = running;
-            sysStates.tec[Address - 2].online   = online;
+            sysStates.tec[(Address - 2)].state    = running;
+            sysStates.tec[(Address - 2)].online   = online;
 
             //
             // fetch the TEC's set point and object temperatures
             //
-            if( !(ms.GetTECTemp(Address, &sysStates.tec[Address - 2].setpoint,
-                &sysStates.tec[Address - 2].temperature)) )
+            if( !(ms.GetTECTemp(Address,
+                    &sysStates.tec[(Address - 2)].setpoint,
+                    &sysStates.tec[(Address - 2)].temperature)) )
             {
                 #ifdef __DEBUG_VIA_SERIAL__
                 Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR:TEC ");
                 Serial.print(Address, DEC); Serial.println(" unable to get temps");
                 Serial.flush();
                 #endif
+
+                sysStates.tec[(Address - 2)].state    = running;
+                sysStates.tec[(Address - 2)].online   = offline;
             }
         }
     }
 
 
-    if( !(TECsOnline && TECsRunning) )
-    {
-        updateLCD(tecFailure);
-        return(false);  // keep the LCD as bad TEC status
-    }
+    if( !(TECsOnline) )
+        sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = tec_ComFailure;
+    else
+        sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = no_Status;
+
+    if( !(TECsRunning) )
+        sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Stopped;
+    else
+        sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Running;
 
 
     //
     // check the humidity/temperature sensor - take an average over time
     //
     sysStates.sensor.online = online;
-    if (sht.readSample())
+    if( (sht.readSample()) )
     {
+        sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]   = no_Status;
+
         //
         // update the sysStates for humidity - take an average to smooth spikes
         //
-        sysStates.sensor.sampleData.index++;
-        sysStates.sensor.sampleData.index >= MAX_HUMIDITY_SAMPLES ? 0 : sysStates.sensor.sampleData.index;
+        Serial.print("sysStates.sensor.sampleData.index: "); Serial.println(sysStates.sensor.sampleData.index, DEC);
+        
         sysStates.sensor.sampleData.sample[sysStates.sensor.sampleData.index] = sht.getHumidity();
         sysStates.sensor.humidity = 0;  // this will eventually be an average when have enough samples
         for(int i = 0; i < MAX_HUMIDITY_SAMPLES; i++)
         {
             if( ( 0 != sysStates.sensor.sampleData.sample[i]) )
-                sysStates.sensor.humidity += sysStates.sensor.sampleData.sample[i];
+                sysStates.sensor.humidity += (sysStates.sensor.sampleData.sample[i]);
             else
             {
                 sysStates.sensor.humidity = 0;
@@ -578,30 +551,46 @@ bool getStatus()
         }
 
         if( (0 != sysStates.sensor.humidity) )
+        {
             // have enough samples, make an average
             sysStates.sensor.humidity /= (float)MAX_HUMIDITY_SAMPLES;
-        else
+
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" took an average for humidity: ");
+            Serial.print(sysStates.sensor.humidity, 2); Serial.println("%"); Serial.flush();
+            #endif
+
+        } else
             // not enough samples - take the raw reading
             sysStates.sensor.humidity = sysStates.sensor.sampleData.sample[sysStates.sensor.sampleData.index];
+
+        //
+        // update the index for the next reading
+        //
+        sysStates.sensor.sampleData.index += 1;
+
+        if( (sysStates.sensor.sampleData.index >= MAX_HUMIDITY_SAMPLES) )
+            sysStates.sensor.sampleData.index = 0;
 
         if (sysStates.sensor.humidity > sysStates.sensor.threshold)
         {
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: found high humidity: ");
-            Serial.print(sysStates.sensor.humidity); Serial.println("%");
+            Serial.print(sysStates.sensor.humidity, 2); Serial.println("%"); Serial.flush();
             #endif
 
-            updateLCD(sensorStatus);
+            // update the LCD
+            sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]   = sensor_HighHumidity;
 
-            //
-            // keep the bad humidity status on the LCD
-            //
-            return(false);
+            retVal  = false;
+        } else
+        {
+            sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]   = no_Status;
         }
     } else
     {
         #ifdef __DEBUG_VIA_SERIAL__
-        Serial.print(__PRETTY_FUNCTION__); Serial.println(" ERROR: sensor offline");
+        Serial.print(__PRETTY_FUNCTION__); Serial.println(" ERROR: sensor not on-line");
         #endif
 
         //
@@ -609,34 +598,13 @@ bool getStatus()
         //
         sysStates.sensor.online = offline;
 
-        updateLCD(sensorFailure);
+        // update the LCD
+        sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]   = sensor_Failure;
 
-        //
-        // keep the bad sensor status on the LCD
-        //
-        return(false);
+        retVal = false;
     }
 
-    return(true);
-}
-
-
-// ---------------------------------------------------------
-//
-// shutdown the chiller and the TECs
-//
-// do not update the LCD
-void shutDownAndDie()
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    shutDownSys();
-
-    // loop forever
-    while(true) { delay(1000); };
+    return(retVal);
 }
 
 
@@ -650,16 +618,13 @@ void shutDownSys()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    char    buff[MAX_BUFF_LENGHT + 1];
-    char*   pBuff = buff;
-
-
     //
     // turn off the chiller
     //
     for(uint8_t i = 0; i < MAX_SHUTDOWN_ATTEMPTS; i++)
     {
-        chiller.StopChiller();
+        if(chiller.StopChiller())
+            break;
     }
 
 
@@ -671,6 +636,15 @@ void shutDownSys()
         ms.StopTEC(Address);
     }
 
+    //
+    // update the LCD to reflect system shutDown
+    // and keep the error LCD offsets set - startUp() will clear them
+    //
+    sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
+    sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]       = tec_Stopped;
+    sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]   = chiller_Stopped;
+    sysStates.lcd.lcdFacesIndex[HUMIDITY_NRML_OFFSET]  = sensor_humidityAndThreshold;
+    
     //
     // set the LED:
     //
@@ -690,7 +664,7 @@ void shutDownSys()
 //
 bool startChiller()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -704,9 +678,25 @@ bool startChiller()
         retVal  = true;
 
         #ifdef __DEBUG_VIA_SERIAL__
-        Serial.println("startChiller unable to start chiller");
+        Serial.print(__PRETTY_FUNCTION__); Serial.println(" unable to start chiller");
         #endif
+
+        // update the sysStates
+        sysStates.chiller.state     = stopped;
+
+        // update the LCD
+        sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]   = chiller_Stopped,
+        sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]   = chiller_ComFailure;
+    } else
+    {
+        // update the sysStates
+        sysStates.chiller.state     = running;
+
+        // update the LCD
+        sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]   = chiller_Running,
+        sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]   = no_Status;
     }
+        
 
     return(retVal);
 }
@@ -722,8 +712,10 @@ bool startChiller()
 bool startTECs()
 {
     bool    retVal      = true;
+    bool    TECsRunning = true;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -733,22 +725,41 @@ bool startTECs()
     // expecting the addresses to be 2, 3, and 4
     // the instance for these commands to be 1
     //
+    // initialize the TEC LCD state
+    sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Stopped;
+    sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = no_Status;
+
     for(uint8_t Address = 2; Address <= MAX_TEC_ADDRESS; Address++)
     {
+        sysStates.tec[(Address - 2)].online   = offline;
+        sysStates.tec[(Address - 2)].state    = stopped;
+
         // set to 2 to enable Live On/Off - otherwise its static on if we send 1 (i.e. always on) ??
         // try the Live On/Off command to enable the TECs .. ?
         if( !(ms.StartTEC(Address)) )
         {
-            retVal  = false;
             #ifdef __DEBUG_VIA_SERIAL__
-            Serial.print("startTECs unable to start TEC ");
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" unable to start TEC: ");
             Serial.println(Address, DEC);
+            Serial.flush();
             #endif
+
+            TECsRunning = false;
+            retVal  = false;
         } else
         {
-            sysStates.tec[Address - 2].online   = online;
-            sysStates.tec[Address - 2].state    = running;
+            sysStates.tec[(Address - 2)].online   = online;
+            sysStates.tec[(Address - 2)].state    = running;
         }
+    }
+
+    if( !(TECsRunning) )
+    {
+        // update the LCD
+        sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = tec_ComFailure;
+    } else
+    {
+        sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Running;
     }
 
     return(retVal);
@@ -758,6 +769,8 @@ bool startTECs()
 bool stopTECs()
 {
     bool    retVal      = true;
+    bool    TECsStopped = true;
+
 
     #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -769,19 +782,30 @@ bool stopTECs()
     // expecting the addresses to be 2, 3, and 4
     // the instance for these commands to be 1
     //
+    sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Stopped;
+    sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = no_Status;
     for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
     {
         if( !(ms.StopTEC(Address)) )
         {
-            retVal  = false;
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print("stopTECs unable to stop TEC ");
             Serial.println(Address, DEC);
             #endif
+
+            retVal      = false;
+            TECsStopped = false;
+
+            // TODO: don't change the TEC states
+            // update the LCD state at least
+            sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = tec_ComFailure;
+            sysStates.tec[(Address - 2)].online         = offline;
+
         } else
         {
-            sysStates.tec[Address - 2].online   = online;
-            sysStates.tec[Address - 2].state    = stopped;
+            // TODO: do we need online and state .. ?
+            sysStates.tec[(Address - 2)].online   = online;
+            sysStates.tec[(Address - 2)].state    = stopped;
         }
     }
 
@@ -791,42 +815,27 @@ bool stopTECs()
 //
 // test communication with all devices
 //
+// and update the LCD status
+//
 bool allDevicesPresent()
 {
     bool retVal         = true;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
+    //
+    // clear the bad LCD status - may be set again below
+    //
+    sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]       = no_Status;
+    sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]   = no_Status;
+    sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]  = no_Status;
 
     //
-    // SHT sensor
-    //
-    if( !(sht.init()) )
-    {
-        #ifdef __DEBUG_VIA_SERIAL__
-        Serial.print(__PRETTY_FUNCTION__);
-        Serial.println(" ERROR: unable to start sensor");
-        Serial.flush();
-        #endif
-
-        //
-        // updat the sysStates
-        //
-        sysStates.sensor.online = offline;
-
-        retVal  = false;
-    } else
-    {
-        sysStates.sensor.online = online;
-    }
-
-
-    //
-    // LCD
+    // LCD starts first, LCD will be used to communicate outside of the box
     //
     if(!startLCD())
     {
@@ -841,6 +850,31 @@ bool allDevicesPresent()
 
 
     //
+    // SHT sensor
+    //
+    if( !(sht.init()) )
+    {
+        #ifdef __DEBUG_VIA_SERIAL__
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println(" ERROR: unable to start sensor");
+        Serial.flush();
+        #endif
+
+        // update the sysStates
+        sysStates.sensor.online = offline;
+
+        // update the LCD status for the sensor
+        sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]  = sensor_Failure;
+
+        retVal  = false;
+    } else
+    {
+        sysStates.sensor.online = online;
+        sysStates.lcd.lcdFacesIndex[HUMIDITY_NRML_OFFSET]  = sensor_humidityAndThreshold;
+    }
+
+
+    //
     // chiller
     //
     if( !(chiller.InitChiller()) )
@@ -851,14 +885,19 @@ bool allDevicesPresent()
         Serial.flush();
         #endif
 
-        //
         // update the sysStates
-        //
         sysStates.chiller.online    = offline;
         sysStates.chiller.state     = stopped;
 
+        // update the LCD status for the chiller
+        sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]  = chiller_ComFailure;
+
         //retVal  = false; TODO: put this back
         retVal  = true;
+    } else
+    {
+        sysStates.chiller.online = online;
+        sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]  = chiller_Stopped;
     }
 
 
@@ -867,8 +906,8 @@ bool allDevicesPresent()
     //
     for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
     {
-        sysStates.tec[Address - 2].online    = online;
-        sysStates.tec[Address - 2].state     = running;
+        sysStates.tec[(Address - 2)].online    = online;
+        sysStates.tec[(Address - 2)].state     = running;
 
         if( !(ms.TECPresent(Address)) )
         {
@@ -879,11 +918,12 @@ bool allDevicesPresent()
             Serial.flush();
             #endif
 
-            //
             // update sysStats
-            //
-            sysStates.tec[Address - 2].online    = offline;
-            sysStates.tec[Address - 2].state     = stopped;
+            sysStates.tec[(Address - 2)].online    = offline;
+            sysStates.tec[(Address - 2)].state     = stopped;
+
+            // update the LCD - if at least one TECs is not up - they are all down
+            sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]  = tec_ComFailure;
 
             retVal  = false;
         }
@@ -901,7 +941,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
     bool retVal = false;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -936,7 +976,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
 
 bool setChillerSetPoint(char* temp)
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -977,9 +1017,8 @@ void handleMsgs()
         Serial.println("switchOps - switched off, doing shutDownSys()");
         #endif
 
-        shutDownAndDie();
+        shutDownSys();
     }
-
 
     //
     // check for message from control PC
@@ -1084,11 +1123,11 @@ void lcd_initializing()
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("Initializing");
+    lcd.print("        SYS initializing");
 }
 
 
-void lcd_notAllDevicesPresent()
+void lcd_ready()
 {
     #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -1098,13 +1137,11 @@ void lcd_notAllDevicesPresent()
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("ALL DEVICES ARE");
-    lcd.setCursor(0,1);
-    lcd.print("NOT PRESENT");
+    lcd.print("SYS ready");
 }
 
 
-void lcd_chillerWarning()
+void lcd_running()
 {
     #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -1114,13 +1151,11 @@ void lcd_chillerWarning()
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("  CHILLER PUMP  ");
-    lcd.setCursor(0,1);
-    lcd.print("   MUST BE ON   ");
+    lcd.print("        SYS running");
 }
 
 
-void lcd_initFailed()
+void lcd_shutdown()
 {
     #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -1130,9 +1165,179 @@ void lcd_initFailed()
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print(" INITIALIZATION ");
+    lcd.print("        SYS shutdown");
+}
+
+
+void lcd_startFailed()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        SYS start fail");
+}
+
+
+void lcd_systemFailure()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        SYS fail");
     lcd.setCursor(0,1);
-    lcd.print("     FAILED     ");
+    lcd.print("failure");
+}
+
+
+void lcd_tecsRunning()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        TEC run         ");
+    lcd.setCursor(17,0);
+    lcd.print(sysStates.tec[0].setpoint,1);   // TODO: or do temperature
+    lcd.setCursor(0,1);
+    lcd.print(sysStates.tec[1].setpoint,1);   // TODO: or do temperature
+    lcd.setCursor(6,1);
+    lcd.print(sysStates.tec[2].setpoint,1);   // TODO: or do temperature
+}
+
+
+void lcd_tecsStopped()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        TEC stop        ");
+    lcd.setCursor(9,0);
+    lcd.print(sysStates.tec[0].setpoint,1);   // TODO: or do temperature
+    lcd.setCursor(0,1);
+    lcd.print(sysStates.tec[1].setpoint,1);   // TODO: or do temperature
+    lcd.setCursor(6,1);
+    lcd.print(sysStates.tec[2].setpoint,1);   // TODO: or do temperature
+}
+
+
+void lcd_tecComFailure()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        TEC COMM");
+    lcd.setCursor(0,1);
+    lcd.print("FAILURE");   // TODO: or do temperature
+}
+
+
+void lcd_chillerRunning()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        CHL RUNNING");
+    lcd.setCursor(0,1);
+    lcd.print(sysStates.chiller.setpoint);
+    lcd.setCursor(0,6);
+    lcd.print(sysStates.chiller.temperature);
+}
+
+
+void lcd_chillerStopped()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        CHL STOPPED");
+    lcd.setCursor(0,1);
+    lcd.print(sysStates.chiller.setpoint);
+    lcd.setCursor(0,6);
+    lcd.print(sysStates.chiller.temperature);
+}
+
+
+void lcd_chillerComFailure()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        CHL COM FAILURE");
+}
+
+
+void lcd_humidityAndThreshold()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        Humidity:      %");
+    lcd.setCursor(21, 0);
+    lcd.print(sysStates.sensor.humidity);
+    lcd.setCursor(0,0);
+    lcd.print("Threshold:     %");
+    lcd.setCursor(13,1);
+    lcd.print(sysStates.sensor.threshold);
+}
+
+
+void lcd_highHumidity()
+{
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+    lcd.display();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("        *** HUMIDITY ***");
+    lcd.setCursor(0,1);
+    lcd.print("**** ALERT *****");
 }
 
 
@@ -1146,111 +1351,7 @@ void lcd_sensorFailure()
     lcd.display();
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print(" SENSOR FAILURE ");
-}
-
-
-void lcd_tecFailure()
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    lcd.display();
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("  TEC FAILURE  ");
-}
-
-
-void lcd_chillerFailure()
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    lcd.display();
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("CHILLER FAILURE ");
-}
-
-void lcd_sensorStatus()
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    if( (sysStates.sensor.humidity > sysStates.sensor.threshold) )
-    {
-        // flash the alert
-        lcd_humidityAlert();
-        delay(3000);
-
-        // then show the status
-        lcd.display();
-        lcd.clear();
-        lcd.setCursor(0,0);
-        lcd.print("*Humidity:     %");  // TODO: add asterisk here ?
-        lcd.setCursor(13, 0);
-        lcd.print(sysStates.sensor.humidity);
-        lcd.setCursor(0,1);
-        lcd.print("Threshold:     %");
-        lcd.setCursor(13,1);
-        lcd.print(sysStates.sensor.threshold);
-    } else
-    {
-        //  show the status
-        lcd.display();
-        lcd.clear();
-        lcd.setCursor(0,0);
-        lcd.print("Humidity:      %");
-        lcd.setCursor(13, 0);
-        lcd.print(sysStates.sensor.humidity);
-        lcd.setCursor(0,1);
-        lcd.print("Threshold:     %");
-        lcd.setCursor(13,1);
-        lcd.print(sysStates.sensor.threshold);
-    }
-}
-
-
-void lcd_humidityAlert()
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    lcd.display();
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("*** HUMIDITY ***");
-    lcd.setCursor(0,1);
-    lcd.print("**** ALERT *****");
-}
-
-
-void lcd_currentHumidityAndThreshold()
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    #endif
-
-    lcd.display();
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("Humidity:      %");
-    lcd.setCursor(13, 0);
-    lcd.print(sysStates.sensor.humidity);
-    lcd.setCursor(0,0);
-    lcd.print("Threshold:     %");
-    lcd.setCursor(13,1);
-    lcd.print(sysStates.sensor.threshold);
+    lcd.print("        SENSOR FAILURE ");
 }
 
 
@@ -1259,7 +1360,13 @@ bool getMsgFromControl()
     uint16_t        seqNum;
     msgHeader_t*    pMsgHeader;
     bool            retVal  = false;
-    
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    Serial.flush();
+    #endif
+
 
     //
     // receive a command, wait 5 seconds for a command
@@ -1267,11 +1374,11 @@ bool getMsgFromControl()
     if( (cp.doRxCommand(5000)) )
     {
         retVal  = true;
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     } else
     {
         Serial.print(__PRETTY_FUNCTION__);
-        Serial.println(": did not get a command from control");
+        Serial.println(" did not get a command from control");
     #endif
     }
 
@@ -1327,7 +1434,7 @@ void handleStartUpCmd()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1346,7 +1453,7 @@ void handleStartUpCmd()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pstartUpCmd->header.address.address));
         Serial.flush();
     #endif
@@ -1392,7 +1499,7 @@ void handleShutDownCmd()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1411,7 +1518,7 @@ void handleShutDownCmd()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pshutDownCmd->header.address.address));
         Serial.flush();
     #endif
@@ -1446,9 +1553,9 @@ void handleGetStatusCmd()
             // check all the TECs - if at least one is not running, report
             // TECs not running (as a whole)
             //
-            for(int Address = 2; Address < MAX_TEC_ADDRESS; Address++)
+            for(int Address = 2; Address <= MAX_TEC_ADDRESS; Address++)
             {
-                if( (sysStates.tec[Address - 2].state != running) )
+                if( (sysStates.tec[(Address - 2)].state != running) )
                 {
                     #ifdef __DEBUG_VIA_SERIAL__
                     Serial.print(__PRETTY_FUNCTION__);
@@ -1479,7 +1586,7 @@ void handleGetStatusCmd()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1498,7 +1605,7 @@ void handleGetStatusCmd()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet: ");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet: ");
         Serial.println(ntohs(pgetStatus->header.address.address));
         Serial.flush();
     #endif
@@ -1530,7 +1637,7 @@ void handleSetHumidityThreshold()
             //
             sysStates.sensor.threshold  = ntohs(psetHumidityThreshold->threshold);
 
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " set humidity threshold to: ");
             Serial.println(sysStates.sensor.threshold);
             #endif
@@ -1551,7 +1658,7 @@ void handleSetHumidityThreshold()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1570,7 +1677,7 @@ void handleSetHumidityThreshold()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(psetHumidityThreshold->header.address.address));
         Serial.flush();
     #endif
@@ -1596,7 +1703,7 @@ void handleGetHumidityThreshold()
         if( (cp.verifyMessage(len_getHumidityThreshold_t,
                             ntohs(pgetHumidityThreshold->crc), ntohs(pgetHumidityThreshold->eop))) )
         {
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " returning humidity threshold: ");
             Serial.println(sysStates.sensor.threshold);
             #endif
@@ -1618,7 +1725,7 @@ void handleGetHumidityThreshold()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1637,7 +1744,7 @@ void handleGetHumidityThreshold()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pgetHumidityThreshold->header.address.address));
         Serial.flush();
     #endif
@@ -1663,7 +1770,7 @@ void handleGetHumidity()
         if( (cp.verifyMessage(len_getHumidity_t,
                         ntohs(pgetHumidity->crc), ntohs(pgetHumidity->eop))) )
         {
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " returning humidity: ");
             Serial.println(sysStates.sensor.humidity);
             #endif
@@ -1685,7 +1792,7 @@ void handleGetHumidity()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1704,7 +1811,7 @@ void handleGetHumidity()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pgetHumidity->header.address.address));
         Serial.flush();
     #endif
@@ -1742,7 +1849,7 @@ void handleSetTECTemperature()
             setPoint = atof(reinterpret_cast<char*>(psetTECTemperature->temperature));
             tecAddress = ntohs(psetTECTemperature->tec_address);
 
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " found setPoint:tecAddress ");
             Serial.print(setPoint,2);
             Serial.print(":");
@@ -1753,9 +1860,8 @@ void handleSetTECTemperature()
             if( (MAX_TEC_ADDRESS >= tecAddress) )
             {
                 if( (setTECTemp(tecAddress, setPoint)) )
-                //if( (true) )
                 {
-                    #ifdef __DEBUG_VIA_SERIAL__
+                    #ifdef __DEBUG2_VIA_SERIAL__
                     Serial.print(__PRETTY_FUNCTION__); Serial.print( " success set temp for TEC: ");
                     Serial.println(tecAddress);
                     Serial.flush();
@@ -1788,7 +1894,7 @@ void handleSetTECTemperature()
                 #endif
             }
 
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print( " sending back response for TEC: ");
             Serial.println(tecAddress);
             #endif
@@ -1811,7 +1917,7 @@ void handleSetTECTemperature()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1830,7 +1936,7 @@ void handleSetTECTemperature()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(psetTECTemperature->header.address.address));
         Serial.flush();
     #endif
@@ -1884,8 +1990,7 @@ void handleGetTECTemperature()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                //tecAddress, sysStates.tec[tecAddress - 2].temperature, pgetTECTemperature->header.seqNum
-                tecAddress, -25.67, pgetTECTemperature->header.seqNum
+                tecAddress, sysStates.tec[(tecAddress - 2)].temperature, pgetTECTemperature->header.seqNum
             );
 
             //
@@ -1897,11 +2002,11 @@ void handleGetTECTemperature()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.print(__PRETTY_FUNCTION__); Serial.print(" sent response: ");
-                Serial.println(sysStates.tec[tecAddress - 2].temperature, 2);
+                Serial.println(sysStates.tec[(tecAddress - 2)].temperature, 2);
                 Serial.flush();
             #endif
             }
@@ -1917,7 +2022,7 @@ void handleGetTECTemperature()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pgetTECTemperature->header.address.address));
         Serial.flush();
     #endif
@@ -1977,7 +2082,7 @@ void handleSetChillerTemperature()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -1996,7 +2101,7 @@ void handleSetChillerTemperature()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(psetChillerTemperature->header.address.address));
         Serial.flush();
     #endif
@@ -2039,7 +2144,7 @@ void handleGetChillerTemperature()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -2058,7 +2163,7 @@ void handleGetChillerTemperature()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pgetChillerTemperature->header.address.address));
         Serial.flush();
     #endif
@@ -2113,7 +2218,7 @@ void handleEnableTECs()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -2132,7 +2237,7 @@ void handleEnableTECs()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(penableTECs->header.address.address));
         Serial.flush();
     #endif
@@ -2187,7 +2292,7 @@ void handleDisableTECs()
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
                 Serial.flush();
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             } else
             {
                 Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
@@ -2206,7 +2311,7 @@ void handleDisableTECs()
     #ifdef __DEBUG_VIA_SERIAL__
     } else
     {
-        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: not my address, dropping packet");
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pdisableTECs->header.address.address));
         Serial.flush();
     #endif
@@ -2216,5 +2321,149 @@ void handleDisableTECs()
 
 void sendNACK()
 {
+    msgHeader_t*    pmsgHeader = reinterpret_cast<msgHeader_t*>(cp.m_buff);
+    uint16_t        respLength; 
+    uint16_t        result = 0;
 
+
+    respLength = cp.Make_NACK(cp.m_peerAddress, cp.m_buff, pmsgHeader->seqNum);
+
+    //
+    // use the CP object to send the response back
+    // this function usese the cp.m_buff created above, just
+    // need to send the lenght into the function
+    //
+    if( !(cp.doTxResponse(respLength)))
+    {
+        Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+        Serial.flush();
+    #ifdef __DEBUG2_VIA_SERIAL__
+    } else
+    {
+        Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void initSysStates(systemState& states)
+{
+    // chiller starts offline until queried via getStatus()
+    states.chiller.online      = offline;
+    states.chiller.state       = stopped;
+    states.chiller.temperature = 0;
+    states.chiller.setpoint    = 0;
+
+    // sensor starts offline until discovered to be online via getStatus()
+    states.sensor.humidity     = 0;
+    states.sensor.threshold    = HUMIDITY_THRESHOLD;
+    states.sensor.online       = offline;
+    states.sensor.sampleData.index = 0;
+    for(int i = 0; i < MAX_HUMIDITY_SAMPLES; i++)
+        states.sensor.sampleData.sample[i] = 0.0;
+
+    // tecs starts offline until discovered to be online via getStatus()
+    for(int i = 2; i < MAX_TEC_ADDRESS; i++)
+    {
+        states.tec[i - 2].online          = offline;
+        states.tec[i - 2].state           = stopped;
+        states.tec[i - 2].setpoint        = 0;
+        states.tec[i - 2].temperature     = 0;
+    }
+
+    // lcd - initialize all messages
+    for(int i = 0; i < MAX_LCD_MSGS; i++)
+        sysStates.lcd.lcdFacesIndex[i] = 0;
+
+    // pick up the millis() 'now' - something fishy about this, what will happen when
+    // the counter rolls over ?  This program is suppossed to run for a long time..
+    // TODO: find a better way - use timeofday or the RTC.. ?
+    sysStates.lcd.prior_millis = millis();
+
+    //
+    // setup the 'good' lcd functions
+    //
+    sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Initializing;
+    sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]       = tec_Stopped;
+    sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]   = chiller_Stopped;
+    sysStates.lcd.lcdFacesIndex[HUMIDITY_NRML_OFFSET]  = sensor_humidityAndThreshold;
+
+    sysStates.lcd.index = 0;
+}
+
+
+//
+// use the global sysStates.lcd data structures to paint
+// messages on the LCD
+//
+void manageLCD()
+{
+    #ifdef __DEBUG2_VIA_SERIAL__
+    Serial.println("---------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    Serial.flush();
+    #endif
+
+    //
+    // if enough time has passed, display the current index
+    //   
+    if( (MAX_MSG_DISPLAY_TIME <= (millis() - sysStates.lcd.prior_millis)) )
+    {
+        Serial.println("1.");
+        //
+        // update the LCD with the next message, if the next message
+        // had been removed, advance to the next message
+        //
+        if( (0 == sysStates.lcd.lcdFacesIndex[sysStates.lcd.index]) )
+        {
+            Serial.println("2.");
+            //
+            // find next non-zero message, adjust sysStates.lcd.index
+            //
+            for(int i = ((((sysStates.lcd.index) + 1) >= HUMIDITY_FAIL_OFFSET) ? 0 : (sysStates.lcd.index + 1));
+                (i != sysStates.lcd.index);
+                (((i + 1) >= HUMIDITY_FAIL_OFFSET) ? 0 : i + 1) )
+            {
+                Serial.println("3.");
+                if( (0 != sysStates.lcd.lcdFacesIndex[i]) )
+                {
+                    Serial.println("4.");
+                    //
+                    // updagte the index and call the LCD function
+                    //
+                    sysStates.lcd.index = i;
+                    break;
+                }
+            }
+        }
+
+        //
+        // update the LCD screen
+        //
+        #ifdef __DEBUG2_VIA_SERIAL__
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" index: ");
+        Serial.println(sysStates.lcd.index);
+        Serial.flush();
+        #endif
+        lcdFaces[sysStates.lcd.lcdFacesIndex[(sysStates.lcd.index)]]();
+
+        //
+        // reload the count down timer
+        //
+        sysStates.lcd.prior_millis  = millis();
+
+        //
+        // and advance the index to the next message
+        //
+        sysStates.lcd.index =
+            (((sysStates.lcd.index + 1) >= HUMIDITY_FAIL_OFFSET) ? 0 : (sysStates.lcd.index + 1));
+
+        #ifdef __DEBUG2_VIA_SERIAL__
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" new index: ");
+        Serial.println(sysStates.lcd.index);
+        Serial.flush();
+        #endif
+
+    }
 }

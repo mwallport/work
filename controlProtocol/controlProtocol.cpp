@@ -28,7 +28,7 @@
 
 
 
-bool controlProtocol::openUSBPort(const char* usbPort)
+bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
 {
     bool    retVal  = false;
 
@@ -54,8 +54,30 @@ bool controlProtocol::openUSBPort(const char* usbPort)
     //
     tcgetattr(m_fd, &options);
 
-    cfsetispeed(&options, B9600);
-    cfsetospeed(&options, B9600);
+    switch(Speed)
+    {
+        case: 19200:
+            cfsetispeed(&options, B19200);
+            cfsetospeed(&options, B19200);
+            break;
+
+        case: 38400:
+            cfsetispeed(&options, B38400);
+            cfsetospeed(&options, B38400);
+            break;
+
+        case: 57600:
+            cfsetispeed(&options, B57600);
+            cfsetospeed(&options, B57600);
+            break;
+
+        default:
+        case: 9600:
+            cfsetispeed(&options, B9600);
+            cfsetospeed(&options, B9600);
+            break;
+    }
+
 
     // Enable the receiver and set local mode...
     options.c_cflag |= (CLOCAL | CREAD);
@@ -97,7 +119,7 @@ bool controlProtocol::openUSBPort(const char* usbPort)
 //
 // TODO: throw if this fails
 //
-controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress, const char* usbPort)
+controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress, const char* usbPort, uint32_t Speed)
     : m_seqNum(0x0000), m_myAddress(myAddress), m_peerAddress(peerAddress)
 {
     //
@@ -109,14 +131,14 @@ controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress, const
     //
     // assuming this always passes TODO: don't assume
     //
-    openUSBPort(usbPort);
+    openUSBPort(usbPort, Speed);
 };
 
 
 //
 // TODO: throw if this fails
 //
-controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress)
+controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress, uint32_t Speed)
     : m_seqNum(0x0000), m_myAddress(myAddress), m_peerAddress(peerAddress)
 {
     //
@@ -126,7 +148,7 @@ controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress)
     TxResponse  = &controlProtocol::TxResponseSerial;
 
     #ifdef __RUNNING_ON_CONTROLLINO__
-    Serial1.begin(9600, SERIAL_8N1);
+    Serial1.begin(Speed, SERIAL_8N1);
     #endif
 };
 
@@ -2396,6 +2418,32 @@ void controlProtocol::Parse_getChillerTemperatureResp(uint8_t* m_buff, float* te
     #endif
 
     *pSeqNum    = pResponse->header.seqNum;
+}
+
+
+uint16_t controlProtocol::Make_NACK(uint16_t Address, uint8_t* pBuff, uint16_t SeqNum)
+{
+    NACK_t* msg = reinterpret_cast<NACK_t*>(pBuff);
+    uint16_t CRC = 0;
+
+
+    // create the getStatus message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(getChillerTemperatureResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = NACK;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_NACK_t);
+
+    // put the CRC
+    msg->crc    = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(NACK_t));
 }
 
 

@@ -80,7 +80,7 @@ typedef struct _HuberData
 class huber
 {
     public:
-    huber(uint16_t, uint16_t, uint32_t);
+    huber(uint32_t);
     virtual ~huber();
     
     //

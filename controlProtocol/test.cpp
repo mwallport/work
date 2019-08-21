@@ -53,7 +53,7 @@ int main(int argc, char** argv)
         printf("---------------------failed to get humidity threshold\n");
     printf("\n\n");
 
-    if( (cpUSB.SetTECTemperature(1, 2, -21.12)) )            // problem - works and flakey/crashy
+    if( (cpUSB.SetTECTemperature(1, 2, -21.12)) )
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
