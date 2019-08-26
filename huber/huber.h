@@ -100,6 +100,9 @@ class huber
     bool  ChillerRunning();
     bool  ChillerPresent();
     bool  SetSetPoint(const char*);
+    float GetSetPointFloat() const;
+    float GetInternalTempFloat() const;
+    float GetExternalTempFloat() const;
     const char* GetSetPoint() const;
     const char* GetInternalTemp() const;
     const char* GetExternalTemp() const;

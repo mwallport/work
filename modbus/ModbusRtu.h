@@ -37,9 +37,17 @@
  * @defgroup register Modbus Function Codes for Holding/Input Registers
  *
  */
+#ifdef __RUNNING_ON_CONTROLLINO__
+    #if defined(ARDUINO) && ARDUINO >= 100
+        #include "Arduino.h"
+    #else
+        #include "WProgram.h"
+    #endif
+#endif
+
 
 #include <inttypes.h>
-#include "Arduino.h"
+//#include "Arduino.h"
 #include "Print.h"
 #include <SoftwareSerial.h>
 
@@ -51,6 +59,7 @@
 #define RS485_CLEAR_RE    RS485_PORT_REG &= ~RS485_PIN_RE
 #define RS485_SET_DE      RS485_PORT_REG |= RS485_PIN_DE
 #define RS485_SET_RE      RS485_PORT_REG |= RS485_PIN_RE
+#define __THERMIC_RULE__
 
 
 /**
@@ -1194,6 +1203,8 @@ void Modbus::buildException( uint8_t u8exception )
  */
 void Modbus::get_FC1()
 {
+    #ifndef __THERMIC_RULE__
+    Serial.println("********** NOT THERMIC RULE CODE IN LIBRARY *************");
     uint8_t u8byte, i;
     u8byte = 3;
      for (i=0; i< au8Buffer[2]; i++) {
@@ -1209,6 +1220,46 @@ void Modbus::get_FC1()
         }
         
      }
+    #else
+    //
+    // Thermic rule's Modbus appears to have a word for packet length rather
+    // than [this library's] expected byte.
+    // The following is an adaption for Thermic Rule to accommodate a word
+    // for length
+    //
+    // example is read register, Thermic Rule replies with this :
+    // 1 3 0 2 2 30 E5 7E
+    // where
+    // - 1 is the slave address
+    // - 3 is the function code
+    // - 0 2 is the length of the following data, this is where this library wants a byte
+    // - 02 30 is the returned register value
+    // - E5 7E is the CRC
+    //
+    Serial.println("********** THERMIC RULE CODE IN LIBRARY *************");
+    uint8_t     u8byte, i;
+    uint16_t    len;
+
+
+    u8byte = 4; // data starts here due to the larger magnitude for 'length'
+
+    // read a word at offset 2 rather than a byte
+    len = word(au8Buffer[2], au8Buffer[3]);
+
+    for (i=0; i< len; i++) {
+        
+        if(i%2)
+        {
+            au16regs[i/2]= word(au8Buffer[i+u8byte], lowByte(au16regs[i/2]));
+        }
+        else
+        {
+           
+            au16regs[i/2]= word(highByte(au16regs[i/2]), au8Buffer[i+u8byte]); 
+        }
+        
+     }
+    #endif
 }
 
 /**
@@ -1219,6 +1270,9 @@ void Modbus::get_FC1()
  */
 void Modbus::get_FC3()
 {
+
+    #ifndef __THERMIC_RULE__
+    Serial.println("********** NOT THERMIC RULE CODE IN LIBRARY *************");
     uint8_t u8byte, i;
     u8byte = 3;
 
@@ -1229,6 +1283,41 @@ void Modbus::get_FC3()
                             au8Buffer[ u8byte +1 ]);
         u8byte += 2;
     }
+
+    #else
+    //
+    // Thermic rule's Modbus appears to have a word for packet length rather
+    // than [this library's] expected byte.
+    // The following is an adaption for Thermic Rule to accommodate a word
+    // for length
+    //
+    // example is read register, Thermic Rule replies with this :
+    // 1 3 0 2 2 30 E5 7E
+    // where
+    // - 1 is the slave address
+    // - 3 is the function code
+    // - 0 2 is the length of the following data, this is where this library wants a byte
+    // - 02 30 is the returned register value
+    // - E5 7E is the CRC
+    //
+    Serial.println("********** THERMIC RULE CODE IN LIBRARY *************");
+    uint8_t     u8byte, i;
+    uint16_t    len;
+
+
+    u8byte = 4; // data starts here due to the larger magnitude for 'length'
+
+    // read a word at offset 2 rather than a byte
+    len = word(au8Buffer[2], au8Buffer[3]);
+
+    for (i = 0; i < len / 2; i++)
+    {
+        au16regs[ i ] = word(
+                            au8Buffer[ u8byte ],
+                            au8Buffer[ u8byte +1 ]);
+        u8byte += 2;
+    }
+    #endif
 }
 
 /**

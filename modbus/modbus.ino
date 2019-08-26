@@ -78,30 +78,36 @@ uint8_t currentQuery; // pointer to message query
 unsigned long WaitingTime;
 
 void setup() {
+
+  delay(1000);
+
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
   Serial.println("-----------------------------------------");
   Serial.println("CONTROLLINO Modbus RTU Master Test Sketch");
   Serial.println("-----------------------------------------");
   Serial.println("");
-  // ModbusQuery 0: read registers
-  ModbusQuery[0].u8id = SlaveModbusAdd; // slave address
-  ModbusQuery[0].u8fct = 3; // function code (this one is registers read)3 - read, 6 - write
-  ModbusQuery[0].u16RegAdd = 0x0000; // start address in slave - want to read from 0
-  ModbusQuery[0].u16CoilsNo = 1; // number of elements (coils or registers) to read
-  ModbusQuery[0].au16reg = ModbusSlaveRegisters; // pointer to a memory array in the CONTROLLINO
-  //ModbusSlaveRegisters[0] = 0x0230;
 
-  // ModbusQuery 1: write a single register
-//  ModbusQuery[1].u8id = SlaveModbusAdd; // slave address
-//  ModbusQuery[1].u8fct = 3; // function code (this one is write a single register)
-//  ModbusQuery[1].u16RegAdd = 0x1000; // start address in slave
+  // ModbusQuery 0: write register 0
+  ModbusQuery[0].u8id       = SlaveModbusAdd; // slave address
+  ModbusQuery[0].u8fct      = 3; // function code (this one is registers read)3 - read, 6 - write
+  ModbusQuery[0].u16RegAdd  = 0x0000; // start address in slave - want to read from 0
+  ModbusQuery[0].u16CoilsNo = 1; // number of elements (coils or registers) to read
+  ModbusQuery[0].au16reg    = ModbusSlaveRegisters; // pointer to a memory array in the CONTROLLINO
+//  ModbusSlaveRegisters[0]   = 0x026C;
+
+// ModbusQuery 1: read register 0
+//  ModbusQuery[1].u8id       = SlaveModbusAdd; // slave address
+//  ModbusQuery[1].u8fct      = 3; // function code (this one is write a single register)
+//  ModbusQuery[1].u16RegAdd  = 0x0000; // start address in slave
 //  ModbusQuery[1].u16CoilsNo = 1; // number of elements (coils or registers) to write
-//  ModbusQuery[1].au16reg = ModbusSlaveRegistersB; // pointer to a memory array in the CONTROLLINO
-//  ModbusSlaveRegisters[4] = 26; // initial value for the relays
+//  ModbusQuery[1].au16reg    = ModbusSlaveRegisters; // pointer to a memory array in the CONTROLLINO
    
+
   ControllinoModbusMaster.begin( 19200 ); // baud-rate at 19200
   ControllinoModbusMaster.setTimeOut( 5000 ); // if there is no answer in 5000 ms, roll over
+
+  delay(1000);
  
   WaitingTime = millis() + 1000;
   myState = 0;
@@ -114,7 +120,10 @@ void loop() {
   int pollResponse = 0;
   int queryResponse;
 
- 
+
+  delay(3000);
+
+
   switch( myState ) {
   case 0:
     if (millis() > WaitingTime) myState++; // wait state
@@ -136,15 +145,10 @@ void loop() {
     break;
   case 2:
 
-    // clear the au8Buffer from the ModBus library
-    for(int i = 0; i < MAX_BUFFER; i++)
-        ControllinoModbusMaster.au8Buffer[i] = 0x00;
-
-
     // clear the ModbusRegisters
     for(int i = 0; i < 8; i++)
         ModbusSlaveRegisters[i] = 0x00;
-    
+
     pollResponse = ControllinoModbusMaster.poll(); // check incoming messages
     Serial.print("poll response : ");
     Serial.print(pollResponse);
@@ -152,11 +156,12 @@ void loop() {
     Serial.print("last error : ");
     Serial.print(ControllinoModbusMaster.getLastError());
     Serial.println("");
-    if (ControllinoModbusMaster.getState() == COM_IDLE)
+    if ((ControllinoModbusMaster.getState() == COM_IDLE)) //&& (NO_REPLY != ControllinoModbusMaster.getLastError()) )
       {
         // response from the slave was received
-        //myState = 0; TODO: put this back, for now just keep reading !
+        //myState = 0; TODO: put this back
         //WaitingTime = millis() + 1000; TODO: put this back
+
         // debug printout
         if (currentQuery == 0)
           {
@@ -164,40 +169,44 @@ void loop() {
             Serial.println("---------- WRITE RESPONSE RECEIVED ----");
             Serial.println("");
           }
-        if (currentQuery == 0)
+
+        if (currentQuery == 1)
           {
             // registers read was proceed
             Serial.println("---------- READ RESPONSE RECEIVED ----");
-            Serial.print("Slave ");
-            Serial.print(SlaveModbusAdd, DEC);
-            //Serial.print(" , Process Value: ");
-            //Serial.print(ModbusSlaveRegisters[0], DEC);
-//            pvF = ModbusSlaveRegisters[0] / 10;
-//            Serial.print(pvF, 1);
-            //Serial.print(" , Set Value: ");
-            //Serial.println(ModbusSlaveRegisters[1], DEC);
-//            svF = ModbusSlaveRegisters[1] / 10;
-//            Serial.print(pvF, 1);
+          }
+
+        Serial.print("Slave ");
+        Serial.print(SlaveModbusAdd, DEC);
+        Serial.print(" , Process Value: ");
+        Serial.print(ModbusSlaveRegisters[0], HEX);
+        pvF = ModbusSlaveRegisters[0] / (float)10;
+        Serial.print(pvF, 1);
+        Serial.print(" , Set Value: ");
+        Serial.print(ModbusSlaveRegisters[1], HEX);
+        svF = ModbusSlaveRegisters[1] / (float)10;
+        Serial.println(pvF, 1);
         
-            // dump the au8Buffer from the ModBus library
-            Serial.println("Modbus slave response:");
-            for(int i = 0; i < MAX_BUFFER; i++)
-            {
-                Serial.print(ControllinoModbusMaster.au8Buffer[i], HEX);
-                Serial.print(" ");
-            }
-
+        // dump the au8Buffer from the ModBus library
+        Serial.println("Modbus slave response:");
+        for(int i = 0; i < 16; i++)
+        {
+            Serial.print(ControllinoModbusMaster.au8Buffer[i], HEX);
+            Serial.print(" ");
+        }
+        Serial.println("");
             
-            // print all the ModbusRegisters
-            Serial.println("all ModbusSlaveRegisters:");
-            for(int i = 0; i < 8; i++)
-            {
-                Serial.print(ModbusSlaveRegisters[i], HEX);
-                Serial.print(" ");
-            }
+        // print all the ModbusRegisters
+        Serial.println("all ModbusSlaveRegisters:");
+        for(int i = 0; i < 8; i++)
+        {
+            Serial.print(ModbusSlaveRegisters[i], HEX);
+            Serial.print(" ");
+        }
 
-            Serial.println("-------------------------------------");
-            Serial.println("");
+        Serial.println("");
+        Serial.println("-------------------------------------");
+        Serial.println("");
 
             // toggle with the relays
 //            ModbusQuery[1].u16RegAdd++;
@@ -213,15 +222,16 @@ void loop() {
 //                    ModbusSlaveRegisters[4] = 1;
 //                  }
 //              }
-        }
+//        }
     } else
     {
-        Serial.println("ERROR: ControllinoModbusMaster.getState() NOT COM_IDLE");
+        if( 0 == pollResponse )
+          Serial.println("WARNING: did not get a response");
+        else
+          Serial.println("ERROR: ControllinoModbusMaster.getState() NOT COM_IDLE");
     }
 
-    delay(100);
-
-    break;
+     break;
   }
 }
 

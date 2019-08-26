@@ -16,16 +16,19 @@ int main(int argc, char** argv)
     uint16_t    destAddress = 1;
     float       humidity    = 39.04;
     float       temperature = 0;
-    controlProtocol cpUSB(0, 1, "/dev/ttyUSB0"); // my address, peer address, usb file
+    controlProtocol cpUSB(0, 1, "/dev/ttyUSB0", 9600); // my address, peer address, usb file
 
 
-    if( (cpUSB.StartUpCmd(1)) )
+/*
+    if( (cpUSB.StartUpCmd(1)) ) // working
         printf("++++++++++++++++++++++++StartUpCmd good\n");
     else
         printf("-------------------StartUpCmd bad\n");
-
     printf("\n\n");
-    if( (cpUSB.GetStatus(destAddress, &humidityAlert, &TECsRunning, &chillerOnLine)) )
+
+*/
+
+    if( (cpUSB.GetStatus(destAddress, &humidityAlert, &TECsRunning, &chillerOnLine)) ) // not working
     {
         printf("++++++++++++++++++++got: humidityAlert %hu, TECsRunning %hu, chillerOnLine %hu\n",
             humidityAlert, TECsRunning, chillerOnLine);
@@ -33,57 +36,73 @@ int main(int argc, char** argv)
     {
         printf("---------------------failed to GetStatus\n");
     }
-
     printf("\n\n");
-    if( (cpUSB.GetHumidity(1, &humidity)) )
+
+
+    if( (cpUSB.GetHumidity(1, &humidity)) )     // working
         printf("+++++++++++++++++++++got: humidity %f\n", humidity);
     else
         printf("---------------------failed to get humidity\n");
-
     printf("\n\n");
-    if( (cpUSB.SetHumidityThreshold(1, 47)) )
+
+/*
+    if( (cpUSB.SetHumidityThreshold(1, 58)) )  // working
         printf("+++++++++++++++++++++success on set humidity threshold\n");
     else
         printf("---------------------fail on set humidity threshold\n");
-
     printf("\n\n");
-    if( (cpUSB.GetHumidityThreshold(1, &threshold)) )
+*/
+
+    if( (cpUSB.GetHumidityThreshold(1, &threshold)) ) // working
         printf("+++++++++++++++++++++got humidity threshold: %d\n", threshold);
     else
         printf("---------------------failed to get humidity threshold\n");
     printf("\n\n");
 
-    if( (cpUSB.SetTECTemperature(1, 2, -21.12)) )
+
+    if( (cpUSB.GetHumidity(1, &humidity)) ) // working
+        printf("+++++++++++++++++++++got: humidity %f\n", humidity);
+    else
+        printf("---------------------failed to get humidity\n");
+    printf("\n\n");
+
+/*
+    if( (cpUSB.SetTECTemperature(1, 2, -14.5)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
-
     printf("\n\n");
-    if( (cpUSB.GetTECTemperature(1, 2, &temperature)) ) // always sends back 0.00 (and is correct in pkt)
+
+*/
+
+    if( (cpUSB.GetTECTemperature(1, 2, &temperature)) ) // showing number that is too big
         printf("++++++++++++++++++++++got TEC temperature %f\n", temperature);// works if you program in non-zero
     else
         printf("----------------------failed to get TEC temperature\n");
-
     printf("\n\n");
-    if( (cpUSB.SetChillerTemperature(1, 23.3)) )
+
+/*
+    if( (cpUSB.SetChillerTemperature(1, -15)) ) // not working
         printf("++++++++++++++++++++++success for set chiller temperature\n");
     else
         printf("----------------------fail on set chiller temperature\n");
-
     printf("\n\n");
-    if( (cpUSB.GetChillerTemperature(1, &temperature)) )
+*/
+
+    if( (cpUSB.GetChillerTemperature(1, &temperature)) ) // not working
         printf("+++++++++++++++++++++got chiller temperature %f\n", temperature);
     else
         printf("---------------------failed to get chiller temperature\n");
-    
     printf("\n\n");
+
+/*
     if( (cpUSB.EnableTECs(1)) )
         printf("+++++++++++++++++++++success on enable TECs\n");
     else
         printf("---------------------fail on enable TECs\n");
     
     printf("\n\n");
-    if( (cpUSB.DisableTECs(1)) )
+    if( (cpUSB.DisableTECs(1)) )    // LCD shows running still - not working
         printf("+++++++++++++++++++++success on disable TECs\n");
     else
         printf("---------------------failure on disable TECs\n");
@@ -93,6 +112,8 @@ int main(int argc, char** argv)
         printf("+++++++++++++++++++++ShutDownCmd good\n");
     else
         printf("---------------------ShutDownCmd bad\n");
+
+*/
 
     return(0);
 }

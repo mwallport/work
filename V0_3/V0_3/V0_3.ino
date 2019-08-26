@@ -279,9 +279,9 @@ bool startLCD()
 
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
+
 
     return(true);
 }
@@ -442,8 +442,13 @@ bool getStatus()
         //
         // TODO: verify picking up the correct data
         //
-        sprintf(chiller.GetInternalTemp(), "%f", &sysStates.chiller.temperature);
-        sprintf(chiller.GetSetPoint(), "%f", &sysStates.chiller.setpoint);
+        sysStates.chiller.temperature   = chiller.GetInternalTempFloat();
+        sysStates.chiller.setpoint      = chiller.GetSetPointFloat();
+
+        #ifdef __DEBUG2_VIA_SERIAL__
+        Serial.print("stored temperatures "); Serial.print(sysStates.chiller.temperature);
+        Serial.print(":"); Serial.print(sysStates.chiller.setpoint);
+        #endif
     }
 
     //
@@ -500,7 +505,7 @@ bool getStatus()
                     &sysStates.tec[(Address - 2)].setpoint,
                     &sysStates.tec[(Address - 2)].temperature)) )
             {
-                #ifdef __DEBUG_VIA_SERIAL__
+                #ifdef __DEBUG2_VIA_SERIAL__
                 Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR:TEC ");
                 Serial.print(Address, DEC); Serial.println(" unable to get temps");
                 Serial.flush();
@@ -508,6 +513,14 @@ bool getStatus()
 
                 sysStates.tec[(Address - 2)].state    = running;
                 sysStates.tec[(Address - 2)].online   = offline;
+                #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.print(__PRETTY_FUNCTION__); Serial.print(" found ");
+                Serial.print(sysStates.tec[(Address - 2)].setpoint, 2);
+                Serial.print(" and "); Serial.println(sysStates.tec[(Address - 2)].temperature, 2);
+                Serial.flush();
+                #endif
             }
         }
     }
@@ -530,13 +543,9 @@ bool getStatus()
     sysStates.sensor.online = online;
     if( (sht.readSample()) )
     {
-        sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]   = no_Status;
-
         //
         // update the sysStates for humidity - take an average to smooth spikes
         //
-        Serial.print("sysStates.sensor.sampleData.index: "); Serial.println(sysStates.sensor.sampleData.index, DEC);
-        
         sysStates.sensor.sampleData.sample[sysStates.sensor.sampleData.index] = sht.getHumidity();
         sysStates.sensor.humidity = 0;  // this will eventually be an average when have enough samples
         for(int i = 0; i < MAX_HUMIDITY_SAMPLES; i++)
@@ -581,7 +590,6 @@ bool getStatus()
 
             // update the LCD
             sysStates.lcd.lcdFacesIndex[HUMIDITY_FAIL_OFFSET]   = sensor_HighHumidity;
-
             retVal  = false;
         } else
         {
@@ -674,8 +682,7 @@ bool startChiller()
 
     if( !(chiller.StartChiller()) )
     {
-        //retVal  = false; TODO: put this back
-        retVal  = true;
+        retVal  = false;
 
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.print(__PRETTY_FUNCTION__); Serial.println(" unable to start chiller");
@@ -1120,10 +1127,13 @@ void lcd_initializing()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        SYS initializing");
+    lcd.home();
+    lcd.setCursor(0,1);
+    lcd.print("SYS initializing");
+    lcd.display();
+
 }
 
 
@@ -1134,10 +1144,12 @@ void lcd_ready()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
+    lcd.home();
+    lcd.setCursor(0,1);
     lcd.print("SYS ready");
+    lcd.display();
 }
 
 
@@ -1148,10 +1160,12 @@ void lcd_running()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        SYS running");
+    lcd.home();
+    lcd.setCursor(0,1);
+    lcd.print("SYS running");
+    lcd.display();
 }
 
 
@@ -1162,10 +1176,12 @@ void lcd_shutdown()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        SYS shutdown");
+    lcd.home();
+    lcd.setCursor(0,1);
+    lcd.print("SYS shutdown");
+    lcd.display();
 }
 
 
@@ -1176,10 +1192,12 @@ void lcd_startFailed()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        SYS start fail");
+    lcd.home();
+    lcd.setCursor(0,1);
+    lcd.print("SYS start fail");
+    lcd.display();
 }
 
 
@@ -1190,12 +1208,14 @@ void lcd_systemFailure()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        SYS fail");
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("SYS fail");
+    lcd.setCursor(0,0);
     lcd.print("failure");
+    lcd.display();
 }
 
 
@@ -1206,16 +1226,18 @@ void lcd_tecsRunning()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        TEC run         ");
-    lcd.setCursor(17,0);
-    lcd.print(sysStates.tec[0].setpoint,1);   // TODO: or do temperature
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("TEC run         ");
+    lcd.setCursor(9,1);
+    lcd.print(sysStates.tec[0].setpoint,1);   // TODO: or do temperature
+    lcd.setCursor(0,0);
     lcd.print(sysStates.tec[1].setpoint,1);   // TODO: or do temperature
-    lcd.setCursor(6,1);
+    lcd.setCursor(6,0);
     lcd.print(sysStates.tec[2].setpoint,1);   // TODO: or do temperature
+    lcd.display();
 }
 
 
@@ -1226,16 +1248,18 @@ void lcd_tecsStopped()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        TEC stop        ");
-    lcd.setCursor(9,0);
-    lcd.print(sysStates.tec[0].setpoint,1);   // TODO: or do temperature
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("TEC stop        ");
+    lcd.setCursor(9,1);
+    lcd.print(sysStates.tec[0].setpoint,1);   // TODO: or do temperature
+    lcd.setCursor(0,0);
     lcd.print(sysStates.tec[1].setpoint,1);   // TODO: or do temperature
-    lcd.setCursor(6,1);
+    lcd.setCursor(6,0);
     lcd.print(sysStates.tec[2].setpoint,1);   // TODO: or do temperature
+    lcd.display();
 }
 
 
@@ -1246,12 +1270,14 @@ void lcd_tecComFailure()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        TEC COMM");
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("TEC COMM");
+    lcd.setCursor(0,0);
     lcd.print("FAILURE");   // TODO: or do temperature
+    lcd.display();
 }
 
 
@@ -1262,14 +1288,21 @@ void lcd_chillerRunning()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        CHL RUNNING");
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("CHL RUNNING");
+    lcd.setCursor(0,0);
+    lcd.print("S: ");
+    lcd.setCursor(3,0);
     lcd.print(sysStates.chiller.setpoint);
-    lcd.setCursor(0,6);
+    lcd.setCursor(9,0);
+    lcd.print("T: ");
+    lcd.setCursor(12,0);
     lcd.print(sysStates.chiller.temperature);
+    lcd.display();
 }
 
 
@@ -1280,14 +1313,21 @@ void lcd_chillerStopped()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        CHL STOPPED");
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("CHL STOPPED");
+    lcd.setCursor(0,0);
+    lcd.print("S: ");
+    lcd.setCursor(3,0);
     lcd.print(sysStates.chiller.setpoint);
-    lcd.setCursor(0,6);
+    lcd.setCursor(9,0);
+    lcd.print("T: ");
+    lcd.setCursor(12,0);
     lcd.print(sysStates.chiller.temperature);
+    lcd.display();
 }
 
 
@@ -1298,10 +1338,12 @@ void lcd_chillerComFailure()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        CHL COM FAILURE");
+    lcd.home();
+    lcd.setCursor(0,1);
+    lcd.print("CHL COM FAILURE");
+    lcd.display();
 }
 
 
@@ -1312,16 +1354,18 @@ void lcd_humidityAndThreshold()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        Humidity:      %");
-    lcd.setCursor(21, 0);
+    lcd.setCursor(0,1);
+    lcd.print("Humidity:       %");
+    lcd.setCursor(11,1);
     lcd.print(sysStates.sensor.humidity);
     lcd.setCursor(0,0);
-    lcd.print("Threshold:     %");
-    lcd.setCursor(13,1);
+    lcd.print("Threshold:      %");
+    lcd.setCursor(11,0);
     lcd.print(sysStates.sensor.threshold);
+    lcd.display();
 }
 
 
@@ -1332,12 +1376,15 @@ void lcd_highHumidity()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        *** HUMIDITY ***");
+    lcd.home();
     lcd.setCursor(0,1);
+    lcd.print("*** HUMIDITY ***");
+    lcd.setCursor(0,0);
     lcd.print("**** ALERT *****");
+    lcd.display();
 }
 
 
@@ -1348,10 +1395,13 @@ void lcd_sensorFailure()
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    lcd.display();
+
+    lcd.noDisplay();
     lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("        SENSOR FAILURE ");
+    lcd.home();
+    lcd.setCursor(0,1);
+    lcd.print("SENSOR FAILURE ");
+    lcd.display();
 }
 
 
@@ -1557,7 +1607,7 @@ void handleGetStatusCmd()
             {
                 if( (sysStates.tec[(Address - 2)].state != running) )
                 {
-                    #ifdef __DEBUG_VIA_SERIAL__
+                    #ifdef __DEBUG2_VIA_SERIAL__
                     Serial.print(__PRETTY_FUNCTION__);
                     Serial.print(" WARNING: TEC addr found not running: ");
                     Serial.println(Address); Serial.flush();
@@ -1571,9 +1621,9 @@ void handleGetStatusCmd()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getStatusResp(cp.m_peerAddress, cp.m_buff,
-                (sysStates.sensor.humidity > sysStates.sensor.threshold ? 1 : 0),   // humidity alert
-                (TECsRunning ? 1 : 0),                                              // TECs running
-                (sysStates.chiller.state = running ? 1 : 0),                        // chiller running
+                ((sysStates.sensor.humidity > sysStates.sensor.threshold) ? 1 : 0),   // humidity alert
+                ((true == TECsRunning) ? 1 : 0),                                              // TECs running
+                ((running == sysStates.chiller.state) ? 1 : 0),                        // chiller running
                 pgetStatus->header.seqNum
             );
 
@@ -1845,7 +1895,6 @@ void handleSetTECTemperature()
             //
             // if the TECs addresses is out of range, send back failure
             //
-            //sscanf(reinterpret_cast<char*>(psetTECTemperature->temperature), "%f", &setPoint);
             setPoint = atof(reinterpret_cast<char*>(psetTECTemperature->temperature));
             tecAddress = ntohs(psetTECTemperature->tec_address);
 
@@ -1990,7 +2039,7 @@ void handleGetTECTemperature()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                tecAddress, sysStates.tec[(tecAddress - 2)].temperature, pgetTECTemperature->header.seqNum
+                tecAddress, sysStates.tec[(tecAddress - 2)].setpoint, pgetTECTemperature->header.seqNum
             );
 
             //
@@ -2410,25 +2459,21 @@ void manageLCD()
     //   
     if( (MAX_MSG_DISPLAY_TIME <= (millis() - sysStates.lcd.prior_millis)) )
     {
-        Serial.println("1.");
         //
         // update the LCD with the next message, if the next message
         // had been removed, advance to the next message
         //
         if( (0 == sysStates.lcd.lcdFacesIndex[sysStates.lcd.index]) )
         {
-            Serial.println("2.");
             //
             // find next non-zero message, adjust sysStates.lcd.index
             //
-            for(int i = ((((sysStates.lcd.index) + 1) >= HUMIDITY_FAIL_OFFSET) ? 0 : (sysStates.lcd.index + 1));
+            for(int i = ((((sysStates.lcd.index) + 1) >= MAX_LCD_MSGS) ? 0 : (sysStates.lcd.index + 1));
                 (i != sysStates.lcd.index);
-                (((i + 1) >= HUMIDITY_FAIL_OFFSET) ? 0 : i + 1) )
+                (((i + 1) >= MAX_LCD_MSGS) ? 0 : i + 1) )
             {
-                Serial.println("3.");
                 if( (0 != sysStates.lcd.lcdFacesIndex[i]) )
                 {
-                    Serial.println("4.");
                     //
                     // updagte the index and call the LCD function
                     //
@@ -2457,7 +2502,7 @@ void manageLCD()
         // and advance the index to the next message
         //
         sysStates.lcd.index =
-            (((sysStates.lcd.index + 1) >= HUMIDITY_FAIL_OFFSET) ? 0 : (sysStates.lcd.index + 1));
+            (((sysStates.lcd.index + 1) >= MAX_LCD_MSGS) ? 0 : (sysStates.lcd.index + 1));
 
         #ifdef __DEBUG2_VIA_SERIAL__
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" new index: ");

@@ -1063,6 +1063,51 @@ const char* huber::GetExternalTemp() const
 }
 
 
+float huber::GetSetPointFloat() const
+{
+    float retVal;
+
+
+    //
+    // i find sptintf support not great on uC, going
+    // with atof for now
+    //
+    retVal  = atof(huberData.setPointTemp);
+    retVal  /= (float)100.00;
+    return(retVal);
+}
+
+
+float huber::GetInternalTempFloat() const
+{
+    float retVal;
+
+
+    //
+    // i find sptintf support not great on uC, going
+    // with atof for now
+    //
+    retVal  = atof(huberData.internalTemp);
+    retVal  /= (float)100.00;
+    return(retVal);
+}
+
+
+float huber::GetExternalTempFloat() const
+{
+    float retVal;
+
+
+    //
+    // i find sptintf support not great on uC, going
+    // with atof for now
+    //
+    retVal  = atof(huberData.externalTemp);
+    retVal  /= (float)100.00;
+    return(retVal);
+}
+
+
 const char* huber::GetAlarms() const
 {
     return(huberData.alarmStatus);

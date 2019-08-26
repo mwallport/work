@@ -56,23 +56,23 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
 
     switch(Speed)
     {
-        case: 19200:
+        case 19200:
             cfsetispeed(&options, B19200);
             cfsetospeed(&options, B19200);
             break;
 
-        case: 38400:
+        case 38400:
             cfsetispeed(&options, B38400);
             cfsetospeed(&options, B38400);
             break;
 
-        case: 57600:
+        case 57600:
             cfsetispeed(&options, B57600);
             cfsetospeed(&options, B57600);
             break;
 
         default:
-        case: 9600:
+        case 9600:
             cfsetispeed(&options, B9600);
             cfsetospeed(&options, B9600);
             break;
