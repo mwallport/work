@@ -337,26 +337,37 @@ bool startUp()
     initSysStates(sysStates);
 
     //
-    // TODO: chiller is always on - but send the command anyway
+    // only start if all devices are present
     //
-    // try to start everything
-    //
-    if( !(startSHTSensor()) )
-        retVal  = false;
-
-    if( !(startChiller()) )
-        retVal  = false;
-
-    if( !(startTECs()) )
-        retVal = false;
-
-    if( !(startLCD()) )
-        retVal = false;
-    
-    if( (retVal) )
+    if( (allDevicesPresent()) )
     {
-        // set the LCD to running
-        sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Running;
+        //
+        // TODO: chiller is always on - but send the command anyway
+        //
+        // try to start everything
+        //
+        if( !(startSHTSensor()) )
+            retVal  = false;
+    
+        if( !(startChiller()) )
+            retVal  = false;
+    
+        if( !(startTECs()) )
+            retVal = false;
+    
+        if( !(startLCD()) )
+            retVal = false;
+        
+        if( (retVal) )
+        {
+            // set the LCD to running
+            sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Running;
+        }
+    } else
+    {
+        // all devices are not present, do shutDown()
+        shutDownSys();
+        retVal  = false;
     }
 
     return(retVal);
@@ -447,7 +458,8 @@ bool getStatus()
 
         #ifdef __DEBUG2_VIA_SERIAL__
         Serial.print("stored temperatures "); Serial.print(sysStates.chiller.temperature);
-        Serial.print(":"); Serial.print(sysStates.chiller.setpoint);
+        Serial.print(" : "); Serial.println(sysStates.chiller.setpoint);
+        Serial.flush();
         #endif
     }
 
@@ -518,7 +530,7 @@ bool getStatus()
             {
                 Serial.print(__PRETTY_FUNCTION__); Serial.print(" found ");
                 Serial.print(sysStates.tec[(Address - 2)].setpoint, 2);
-                Serial.print(" and "); Serial.println(sysStates.tec[(Address - 2)].temperature, 2);
+                Serial.print(" : "); Serial.println(sysStates.tec[(Address - 2)].temperature, 2);
                 Serial.flush();
                 #endif
             }
@@ -2112,7 +2124,8 @@ void handleSetChillerTemperature()
             } else
             {
                 #ifdef __DEBUG_VIA_SERIAL__
-                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to setChillerSetPoint");
+                Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to setChillerSetPoint to: ");
+                Serial.println(reinterpret_cast<char*>(psetChillerTemperature->temperature));
                 Serial.flush();
                 #endif
                 result  = 0;
@@ -2322,7 +2335,7 @@ void handleDisableTECs()
             } else
             {
                 #ifdef __DEBUG_VIA_SERIAL__
-                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to stopTECs");
+                Serial.println(__PRETTY_FUNCTION__); Serial.println(" ERROR: failed to stopTECs");
                 Serial.flush();
                 #endif
                 result  = 0;

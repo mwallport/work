@@ -426,7 +426,7 @@ bool controlProtocol::GetStatus(uint16_t destAddress, uint16_t* humidityAlert,
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(8000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -522,7 +522,7 @@ bool controlProtocol::GetHumidity(uint16_t destAddress, float* humidity)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -615,7 +615,7 @@ bool controlProtocol::SetHumidityThreshold(uint16_t destAddress, uint16_t thresh
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -710,7 +710,7 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -806,7 +806,7 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -901,7 +901,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -997,7 +997,7 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1092,7 +1092,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1188,7 +1188,7 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1284,7 +1284,7 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1380,7 +1380,7 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1476,7 +1476,7 @@ bool controlProtocol::ShutDownCmd(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(5000)) )
+        if( (doRxResponse(10000)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //

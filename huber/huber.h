@@ -43,27 +43,6 @@ const uint8_t EXTERNAL_TEMP_INDEX           = 17;
 const uint8_t MAX_EXTERNAL_TEMP_LENGTH      = 4;
 
 
-class debug
-{
-    public:
-    debug()
-    {
-        Serial.print(__PRETTY_FUNCTION__);
-        Serial.flush();
-        Serial.println(" enter");
-        Serial.flush();
-    }
-
-    virtual ~debug()
-    {
-        Serial.print(__PRETTY_FUNCTION__);
-        Serial.flush();
-        Serial.println(" exit");
-        Serial.flush();
-    }
-};
-
-
 //
 // data structure to store results of calls to huber's 'General' command
 //

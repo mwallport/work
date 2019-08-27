@@ -18,11 +18,6 @@
 huber::huber(uint32_t Speed)
  : chillerInitialized(false)
 {
-#ifdef __DEBUG_FUNC_HUBER__
-Serial.begin(9600);
-debug dbg();
-#endif
-
     //
     // initialize slaveID to '01'
     //
@@ -44,18 +39,11 @@ debug dbg();
 
 huber::~huber()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
 };
 
 
 bool huber::TxCommand()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     uint8_t lenWritten;
     bool    retVal  = true;
 
@@ -90,10 +78,6 @@ debug dbg();
 //
 bool huber::RxResponse(char** retBuff, uint32_t TimeoutMs)
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool retVal             = false;
     bool done               = false;
     bool gotSTX             = false;     // TODO: for now dont' find a defined start char
@@ -199,10 +183,6 @@ debug dbg();
 //
 bool huber::sendVerifyCommand()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal      = false;
     bool    cmdTxAckRx  = false;
     uint8_t count       = 0;
@@ -333,10 +313,6 @@ debug dbg();
 //
 bool huber::sendLimitCommand()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal      = false;
     bool    cmdTxAckRx  = false;
     uint8_t count       = 0;
@@ -481,10 +457,6 @@ debug dbg();
 //
 bool huber::sendGeneralCommand()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal      = false;
     bool    cmdTxAckRx  = false;
     uint8_t count       = 0;
@@ -628,10 +600,6 @@ debug dbg();
 
 bool huber::InitChiller()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     if( !(chillerInitialized) ) 
     {
         if( !(sendVerifyCommand()) )
@@ -720,10 +688,6 @@ bool huber::getChillerStatus()
 //
 bool huber::StartChiller()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal  = false;
     uint8_t count   = 0;
 
@@ -836,10 +800,6 @@ debug dbg();
 
 bool huber::ChillerRunning()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal  = false;
 
 
@@ -891,10 +851,6 @@ debug dbg();
 
 bool huber::StopChiller()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal  = false;
     uint8_t count   = 0;
 
@@ -958,10 +914,6 @@ debug dbg();
 
 bool huber::ChillerPresent()
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
     bool    retVal    = false;
 
 
@@ -974,12 +926,10 @@ debug dbg();
 
 bool huber::SetSetPoint(const char* pSetPoint)
 {
-#ifdef __DEBUG_FUNC_HUBER__
-debug dbg();
-#endif
-
-    bool    retVal  = false;
-    uint8_t count   = 0;
+    bool        retVal  = false;
+    uint8_t     count   = 0;
+    float       setTemp;
+    uint16_t    converted;
 
 
     //
@@ -1000,10 +950,13 @@ debug dbg();
     Buff[count++] = 'x';    // length setLengthAndCheckSum to fill in
     Buff[count++] = '*';    // Temp control mode - query only
     Buff[count++] = '*';    // Alarms query, don't change current state
-    Buff[count++] = pSetPoint[0];    // Set set point
-    Buff[count++] = pSetPoint[1];    // Set set point
-    Buff[count++] = pSetPoint[2];    // Set set point
-    Buff[count++] = pSetPoint[3];    // Set set point
+
+    // convert pSetPoint to ASCII HEX representation
+    setTemp     = atof(pSetPoint);
+    converted   = (setTemp * (float)100);
+    snprintf(reinterpret_cast<char*>(&Buff[count]), 5, "%X", converted);
+    count += 4;
+
     Buff[count++] = 'x';    // check sum setLengthAndCheckSum to fill in
     Buff[count++] = 'x';    // check sum setLengthAndCheckSum to fill in
     Buff[count++] = '\r';
@@ -1017,7 +970,7 @@ debug dbg();
         //  TODO : test with real Huber chiller !
         // check the huberData structure, it was updated by the sendGeneralCommand
         // 
-        if( (0 == strncmp(huberData.setPointTemp, pSetPoint, MAX_SET_POINT_LENGTH)) )
+        if( (setTemp == GetSetPointFloat()) )
         {
             #ifdef __DEBUG_HUBER2__
             Serial.print(__PRETTY_FUNCTION__);
@@ -1066,14 +1019,16 @@ const char* huber::GetExternalTemp() const
 float huber::GetSetPointFloat() const
 {
     float retVal;
+    int16_t converted;
 
 
     //
     // i find sptintf support not great on uC, going
     // with atof for now
     //
-    retVal  = atof(huberData.setPointTemp);
-    retVal  /= (float)100.00;
+    sscanf(reinterpret_cast<const char*>(huberData.setPointTemp),"%04x", &converted);
+    retVal = (float)converted / (float)100.00;
+
     return(retVal);
 }
 
@@ -1081,14 +1036,16 @@ float huber::GetSetPointFloat() const
 float huber::GetInternalTempFloat() const
 {
     float retVal;
+    int16_t converted;
 
 
     //
     // i find sptintf support not great on uC, going
     // with atof for now
     //
-    retVal  = atof(huberData.internalTemp);
-    retVal  /= (float)100.00;
+    sscanf(reinterpret_cast<const char*>(huberData.internalTemp),"%04x", &converted);
+    retVal = (float)converted / (float)100.00;
+
     return(retVal);
 }
 
@@ -1096,14 +1053,16 @@ float huber::GetInternalTempFloat() const
 float huber::GetExternalTempFloat() const
 {
     float retVal;
+    int16_t converted;
 
 
     //
     // i find sptintf support not great on uC, going
     // with atof for now
     //
-    retVal  = atof(huberData.externalTemp);
-    retVal  /= (float)100.00;
+    sscanf(reinterpret_cast<const char*>(huberData.externalTemp),"%04x", &converted);
+    retVal = (float)converted / (float)100.00;
+
     return(retVal);
 }
 
