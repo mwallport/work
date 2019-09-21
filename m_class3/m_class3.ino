@@ -35,7 +35,7 @@ void loop()   /****** LOOP: RUNS CONSTANTLY ******/
 {
     int32_t Address = 2;    // this is 0 - 255, default is 0
     int8_t Buf[25];
-    meerstetterRS485 ms(10, 11); // instantiate a meersetter protocol over RS485 bus on pins 10 and 11
+    meerstetterRS485 ms(9600); // instantiate a meersetter protocol over RS485 bus on pins 10 and 11
 
 
     while(1)

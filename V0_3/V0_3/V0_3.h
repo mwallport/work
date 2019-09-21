@@ -8,11 +8,11 @@
 #endif
 
 
-//
-// enable deubug on Serial vai Serial.print(s)
-//
+// this is for important, error condition debug output
 #define __DEBUG_VIA_SERIAL__
-#define __DEBUG2_VIA_SERIAL__
+
+// this is for frivilous debug output
+//#define __DEBUG2_VIA_SERIAL__
 
 
 //

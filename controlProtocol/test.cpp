@@ -19,6 +19,7 @@ int main(int argc, char** argv)
     controlProtocol cpUSB(0, 1, "/dev/ttyUSB0", 9600); // my address, peer address, usb file
 
 
+/*
     if( (cpUSB.StartUpCmd(1)) ) // working- takes too long, this program times out waiting for reply
         printf("++++++++++++++++++++++++StartUpCmd good\n");
     else
@@ -47,7 +48,7 @@ int main(int argc, char** argv)
 
     sleep(2);
 
-    if( (cpUSB.SetHumidityThreshold(1, 60)) )  // working
+    if( (cpUSB.SetHumidityThreshold(1, 57)) )  // working
         printf("+++++++++++++++++++++success on set humidity threshold\n");
     else
         printf("---------------------fail on set humidity threshold\n");
@@ -61,7 +62,6 @@ int main(int argc, char** argv)
         printf("---------------------failed to get humidity threshold\n");
     printf("\n\n");
 
-
     sleep(2);
 
     if( (cpUSB.GetHumidity(1, &humidity)) ) // working
@@ -71,8 +71,9 @@ int main(int argc, char** argv)
     printf("\n\n");
 
     sleep(2);
+*/
 
-    if( (cpUSB.SetTECTemperature(1, 2, -32.23)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 2, -10.01)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -89,7 +90,7 @@ int main(int argc, char** argv)
 
     sleep(2);
 
-    if( (cpUSB.SetChillerTemperature(1, -32.23)) ) // not working
+    if( (cpUSB.SetChillerTemperature(1, -21.12)) ) // not working
         printf("++++++++++++++++++++++success for set chiller temperature\n");
     else
         printf("----------------------fail on set chiller temperature\n");
@@ -103,6 +104,7 @@ int main(int argc, char** argv)
         printf("---------------------failed to get chiller temperature\n");
     printf("\n\n");
     sleep(2);
+/*
 
     if( (cpUSB.EnableTECs(1)) )
         printf("+++++++++++++++++++++success on enable TECs\n");
@@ -119,7 +121,6 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(2);
 
-
     if( (cpUSB.ShutDownCmd(1)) )
         printf("+++++++++++++++++++++ShutDownCmd good\n");
     else
@@ -127,6 +128,7 @@ int main(int argc, char** argv)
     printf("\n\n");
 
     sleep(2);
+*/
 
     return(0);
 }

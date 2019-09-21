@@ -1056,7 +1056,8 @@ bool meerstetterRS485::StopTEC(uint8_t Address)
     if( !(TECRunning(Address)) )
         retVal  = true;
     #ifdef __DEBUG_MS_VIA_SERIAL__
-    else {
+    else
+    {
         Serial.print(__PRETTY_FUNCTION__);
         Serial.print(" TECRunning is still true for addr ");
         Serial.println(Address, DEC);
@@ -1077,7 +1078,15 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
     FieldVal = {0, 0, 0};
     if( (MeCom_COM_DeviceStatus(Address, &FieldVal, MeGet)) )
     {
-        if( (1 == FieldVal.Value) || (2 == FieldVal.Value) )  //TODO: figure out the TEC running state
+        // according to meerstetter docs
+        // 0 - Init
+        // 1 - Ready
+        // 2 - Running
+        // 3 - Error
+        // 4 - Bootloader
+        // 5 - Device will Reset withing next 200ms
+        //if( (1 == FieldVal.Value) || (2 == FieldVal.Value) )  //TODO: figure out the TEC running state
+        if( (2 == FieldVal.Value) )  //TODO: figure out the TEC running state
         {
             retVal  = true;
         #ifdef __DEBUG_MS_VIA_SERIAL__

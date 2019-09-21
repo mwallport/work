@@ -286,7 +286,6 @@ bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
                 {
                     if( (STX == m_buff[bytes_read]) )
                     {
-                        Serial.println("     found STX");
                         // TODO: restart startTime here, give more time to get the packet?
                         gotSTX = true;
                         bytes_read += 1;
@@ -302,10 +301,12 @@ bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
                 {
                     gotLength  = true;
                     length = m_buff[bytes_read++];
+                    #ifdef __DEBUG_CONTROL_PKT_RX__
                     Serial.print("RxCommandSerial found length: ");
                     Serial.print(length, HEX);
                     Serial.println("");
                     Serial.flush();
+                    #endif
                     continue;
                 }
 
