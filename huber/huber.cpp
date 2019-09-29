@@ -101,10 +101,8 @@ bool huber::RxResponse(char** retBuff, uint32_t TimeoutMs)
         } else
         {
             if( (Serial2.available()) )
-            //if( (mySerial2.available()) )
             {
                 Buff[bytes_read] = Serial2.read();
-                //Buff[bytes_read] = mySerial2.read();
 
                 if( (!gotSTX) )
                 {
@@ -189,6 +187,9 @@ bool huber::sendVerifyCommand()
     uint8_t retry       = 0;
 
 
+    // save a copy of the Tx packet for re-trasmits
+    memcpy(static_cast<void*>(Bkup), static_cast<void*>(Buff), MAX_BUFF_LENGTH + 1);
+
     do
     {
         //
@@ -233,7 +234,7 @@ bool huber::sendVerifyCommand()
             //
             // RxResponse also verifies the length and checksum
             //
-            if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
+            if( (RxResponse(0, 5000)) ) // wait max 5000ms for reply and no retBuff
             {
                 cmdTxAckRx = true;
     
@@ -300,7 +301,18 @@ bool huber::sendVerifyCommand()
         #endif
         }
 
-    } while( (!cmdTxAckRx) && (retry++ < MAX_COMMAND_RETRY) );
+        // re-load Buff with the original command
+        // as a partial response could be in Buff
+        if( !(cmdTxAckRx) )
+        {
+            #ifdef __DEBUG_HUBER_ERROR__
+            Serial.println("--------- resending packet ----------");
+            Serial.flush();
+            #endif
+            memcpy(static_cast<void*>(Buff), static_cast<void*>(Bkup), MAX_BUFF_LENGTH + 1);
+        }
+
+    } while( (!cmdTxAckRx) && (++retry < MAX_COMMAND_RETRY) );
 
     return(retVal);
 }
@@ -318,6 +330,9 @@ bool huber::sendLimitCommand()
     uint8_t count       = 0;
     uint8_t retry       = 0;
 
+
+    // save a copy of the Tx packet for re-trasmits
+    memcpy(static_cast<void*>(Bkup), static_cast<void*>(Buff), MAX_BUFF_LENGTH + 1);
 
     do
     {
@@ -367,7 +382,7 @@ bool huber::sendLimitCommand()
             //
             // RxResponse also verifies the length and checksum
             //
-            if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
+            if( (RxResponse(0, 5000)) ) // wait max 5000ms for reply and no retBuff
             {
                 cmdTxAckRx = true;
  
@@ -441,7 +456,18 @@ bool huber::sendLimitCommand()
         #endif
         }
 
-    } while( (!cmdTxAckRx) && (retry++ < MAX_COMMAND_RETRY) );
+        // re-load Buff with the original command
+        // as a partial response could be in Buff
+        if( !(cmdTxAckRx) )
+        {
+            #ifdef __DEBUG_HUBER_ERROR__
+            Serial.println("--------- resending packet ----------");
+            Serial.flush();
+            #endif
+            memcpy(static_cast<void*>(Buff), static_cast<void*>(Bkup), MAX_BUFF_LENGTH + 1);
+        }
+
+    } while( (!cmdTxAckRx) && (++retry < MAX_COMMAND_RETRY) );
 
     return(retVal);
 }
@@ -463,6 +489,9 @@ bool huber::sendGeneralCommand()
     uint8_t retry       = 0;
 
 
+    // save a copy of the Tx packet for re-trasmits
+    memcpy(static_cast<void*>(Bkup), static_cast<void*>(Buff), MAX_BUFF_LENGTH + 1);
+
     #ifdef __DEBUG_PKT_TX__
     Serial.print("sendGeneralCommand is sending: ");
     Serial.flush();
@@ -480,7 +509,7 @@ bool huber::sendGeneralCommand()
             //
             // RxResponse also verifies the length and checksum
             //
-            if( (RxResponse(0, 3000)) ) // wait max 3000ms for reply and no retBuff
+            if( (RxResponse(0, 5000)) ) // wait max 5000ms for reply and no retBuff
             {
                 cmdTxAckRx = true;
 
@@ -587,7 +616,18 @@ bool huber::sendGeneralCommand()
         #endif
         }
 
-    } while( (!cmdTxAckRx) && (retry++ < MAX_COMMAND_RETRY) );
+        // re-load Buff with the original command
+        // as a partial response could be in Buff
+        if( !(cmdTxAckRx) )
+        {
+            #ifdef __DEBUG_HUBER_ERROR__
+            Serial.println("--------- resending packet ----------");
+            Serial.flush();
+            #endif
+            memcpy(static_cast<void*>(Buff), static_cast<void*>(Bkup), MAX_BUFF_LENGTH + 1);
+        }
+
+    } while( (!cmdTxAckRx) && (++retry < MAX_COMMAND_RETRY) );
 
     return(retVal);
 }
@@ -694,13 +734,16 @@ bool huber::StartChiller()
 
     if( !(chillerInitialized) ) 
     {
-        // 
-        // must execute InitChiller 1st
-        // 
-        #ifdef __DEBUG_HUBRER_ERROR__
-        Serial.println("ERROR : must InitChiller before starting chiller");
-        #endif
-        return(false);
+        if( !(InitChiller()) )
+        {
+            //
+            // must execute InitChiller 1st
+            //
+            #ifdef __DEBUG_HUBRER_ERROR__
+            Serial.println("ERROR : unable InitChiller from StartChiller");
+            #endif
+            return(false);
+        }
     }
     
     //
@@ -805,13 +848,16 @@ bool huber::ChillerRunning()
 
     if( !(chillerInitialized) ) 
     {
-        // 
-        // must execute InitChiller 1st
-        // 
-        #ifdef __DEBUG_HUBER_ERROR__
-        Serial.println("ERROR : must InitChiller before starting chiller");
-        #endif
-        return(false);
+        if( !(InitChiller()) )
+        {
+            //
+            // must execute InitChiller 1st
+            //
+            #ifdef __DEBUG_HUBER_ERROR__
+            Serial.println("ERROR : unable to InitChiller from ChillerRunning");
+            #endif
+            return(false);
+        }
     }
     
 

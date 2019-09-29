@@ -249,9 +249,6 @@ bool controlProtocol::RxResponseUSB(uint16_t timeout)
 
 bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
 {
-    printf(__PRETTY_FUNCTION__);
-    printf("\n");
-
     bool retVal             = false;
 #ifdef __RUNNING_ON_CONTROLLINO__
     bool done               = false;
@@ -367,9 +364,6 @@ bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
 
 bool controlProtocol::TxResponseSerial(uint16_t length)
 {
-    printf(__PRETTY_FUNCTION__);
-    printf("\n");
-
     bool    retVal  = true;
 #ifdef __RUNNING_ON_CONTROLLINO__
     uint8_t lenWritten;
@@ -1698,6 +1692,7 @@ uint16_t controlProtocol::Make_getStatus(uint16_t Address, uint8_t* pBuff)
     msg->header.seqNum          = m_seqNum;
     msg->header.msgNum          = getStatusCmd;
 
+/*
     #ifndef __RUNNING_ON_CONTROLLINO__
     printf("input bytes: ");
     for(unsigned int i = 0; i < len_getStatus_t; i++)
@@ -1710,6 +1705,7 @@ uint16_t controlProtocol::Make_getStatus(uint16_t Address, uint8_t* pBuff)
     Serial.println("");
     Serial.flush();
     #endif
+*/
 
 
     // calculate the CRC
@@ -2507,6 +2503,7 @@ bool controlProtocol::verifyMessageCRC(uint16_t buffLength, uint16_t pktCRC)
     uint16_t        CRC         = calcCRC16(m_buff, buffLength);
 
 
+/*
     #ifndef __RUNNING_ON_CONTROLLINO__
     printf("input bytes: ");
     for(int i = 0; i < buffLength; i++)
@@ -2519,6 +2516,7 @@ bool controlProtocol::verifyMessageCRC(uint16_t buffLength, uint16_t pktCRC)
     Serial.println("");
     Serial.flush();
     #endif
+*/
 
 
     if( (CRC != pktCRC) ) 

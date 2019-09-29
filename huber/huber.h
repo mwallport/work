@@ -19,7 +19,7 @@
 //#define __DEBUG_HUBER_ERROR__
 
 const uint8_t MAX_COMMAND_RETRY             = 3;
-const uint8_t MAX_BUFF_LENGTH               = 30; 
+const uint8_t MAX_BUFF_LENGTH               = 32; 
 const uint8_t MAX_SLAVE_ID_LENGTH           = 2;
 const uint8_t MAX_SLAVE_NAME_LENGTH         = 20;
 const uint8_t MAX_LIMIT_LENGTH              = 4;
@@ -101,8 +101,9 @@ class huber
     // software serial connection
     //SoftwareSerial mySerial2;
 
-    // working buffer
+    // working buffers
     char    Buff[MAX_BUFF_LENGTH + 1];
+    char    Bkup[MAX_BUFF_LENGTH + 1];  // for packet Tx retry
 
     // bool to determine whether the chiller has been started by this class
     bool    chillerInitialized;

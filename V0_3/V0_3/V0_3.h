@@ -161,4 +161,17 @@ typedef struct _systemState
 } systemState;
 
 
+//
+// digital encoder
+//
+// encoder
+const int pinB            = 5;  // 5 is PE3  -  Digital 3
+const int pinA            = 2;  // 2 is PE4  -  Digital 0
+const int pinSW           = 3;  // 3 is PE5  -  Digital 1
+int       lastCount       = HUMIDITY_THRESHOLD;
+volatile  int virtualPosition = HUMIDITY_THRESHOLD;
+
+
+
+
 #endif

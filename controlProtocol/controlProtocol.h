@@ -4,11 +4,11 @@
 
 #include <stdint.h>
 
-#define __USING_LINUX_USB__
-#define __DEBUG_CTRL_PROTO__
+//#define __USING_LINUX_USB__
+//#define __DEBUG_CTRL_PROTO__
 //#define __DEBUG_CONTROL_PKT_TX__
 //#define __DEBUG_CONTROL_PKT_RX__
-//#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
+#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
 
 #ifdef __RUNNING_ON_CONTROLLINO__
 #include "./util.h"
