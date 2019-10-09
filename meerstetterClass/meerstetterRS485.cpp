@@ -1310,3 +1310,38 @@ bool meerstetterRS485::GetTECTemp(uint8_t Address, float* setPoint, float* actua
     return(retVal);
 }
 
+
+// TODO: verify the uint16_t to uint8_t demotion is OK for tec_address .. should be
+bool meerstetterRS485::GetTECInfo(uint8_t Address, uint32_t* deviceType, uint32_t* hwVersion,
+                                        uint32_t* fwVersion, uint32_t* serialNumber)
+{
+    bool retVal  = true;
+    MeParLongFields Fields;
+    MeParCmd Cmd    = MeGet;
+
+
+    // TODO: find out what the good return values are for these
+    // device type
+    Fields = {0, 0, 0};
+    MeCom_COM_DeviceType(Address, &Fields, Cmd);
+    *deviceType = Fields.Value;
+
+    // hardware version
+    Fields = {0, 0, 0};
+    MeCom_COM_HardwareVersion(Address, &Fields, Cmd);
+    *hwVersion = Fields.Value;
+
+    // firmware version
+    Fields = {0, 0, 0};
+    MeCom_COM_FirmwareVersion(Address, &Fields, Cmd);
+    *fwVersion = Fields.Value;
+
+    // serial number
+    Fields = {0, 0, 0};
+    MeCom_COM_SerialNumber(Address, &Fields, Cmd);
+    *serialNumber = Fields.Value;
+
+
+    return(retVal);
+}
+

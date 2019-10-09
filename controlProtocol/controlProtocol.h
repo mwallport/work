@@ -4,11 +4,11 @@
 
 #include <stdint.h>
 
-//#define __USING_LINUX_USB__
-//#define __DEBUG_CTRL_PROTO__
-//#define __DEBUG_CONTROL_PKT_TX__
-//#define __DEBUG_CONTROL_PKT_RX__
-#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
+#define __USING_LINUX_USB__
+#define __DEBUG_CTRL_PROTO__
+#define __DEBUG_CONTROL_PKT_TX__
+#define __DEBUG_CONTROL_PKT_RX__
+//#define __RUNNING_ON_CONTROLLINO__  // mutually exclusive with __USING_LINUX_USB__
 
 #ifdef __RUNNING_ON_CONTROLLINO__
 #include "./util.h"
@@ -27,6 +27,7 @@ const   uint8_t     MAX_CHILLER_TEMP_LENGH  = 8;    // i.e "-21.5"  or "+100.1" 
 const   uint8_t     MAX_TEC_TEMP_LENGH      = 8;    // i.e "-21.5"  or "+100.1" - sign and a float number
 const   uint8_t     MAX_HUMIDITY_LENGTH     = 8;    // "34.37" interpreted as percent
 const   uint8_t     MAX_BUFF_LENGTH_CP      = 64;   // size of the work m_buffer
+const   uint8_t     MAX_CHILLER_INFO_LENGTH = 20;   // same size as the name in the huber protocol
 const   uint8_t     COMMAND                 = '#';  // start packet byte for commands
 const   uint8_t     RESPONSE                = '!';  // start packet byte for responses
 const   uint8_t     MSG_NUM_OFFSET          = 4;
@@ -51,6 +52,14 @@ typedef enum _msgID
     setChillerTemperatureResp,  // target TEC m_address and temp response
     getChillerTemperature,      // target TEC m_address and temp
     getChillerTemperatureResp,  // target TEC m_address and temp response
+    startChillerMsg,               // start the chiller  ***
+    startChillerMsgResp,           // response ***
+    stopChiller,                // stop the chiller  ***
+    stopChillerResp,            // response ***
+    getChillerInfo,             // get the name of the chiller  ***
+    getChillerInfoResp,         // response ***
+    getTECInfoMsg,                 // get TEC info
+    getTECInfoMsgResp,             // response ***
     enableTECs,                 // turn on all TECs
     enableTECsResp,             // turn on all TECs response
     disableTECs,                // turn off all TECs
@@ -287,6 +296,92 @@ typedef struct _getChillerTemperatureResp
 const uint16_t len_getChillerTemperatureResp_t = sizeof(getChillerTemperatureResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
+typedef struct _startChillerMsg
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} startChillerMsg_t;
+const uint16_t len_startChillerMsg_t = sizeof(startChillerMsg_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _startChillerMsgResp
+{
+    msgHeader_t header;
+    uint16_t    result;         // 0 - failed to set; 1 - successfully set
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} startChillerMsgResp_t;
+const uint16_t len_startChillerMsgResp_t = sizeof(startChillerMsgResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _stopChiller
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} stopChiller_t;
+const uint16_t len_stopChiller_t = sizeof(stopChiller_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _stopChillerResp
+{
+    msgHeader_t header;
+    uint16_t    result;         // 0 - failed to set; 1 - successfully set
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} stopChillerResp_t;
+const uint16_t len_stopChillerResp_t = sizeof(stopChillerResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getChillerInfo
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getChillerInfo_t;
+const uint16_t len_getChillerInfo_t = sizeof(getChillerInfo_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getChillerInfoResp
+{
+    msgHeader_t header;
+    uint16_t    result;
+    uint8_t     info[MAX_CHILLER_INFO_LENGTH];   // ASCII string data, i.e. name
+    CRC         crc;                            // 16 bit CRC over the packet
+    EOP         eop;                            // end of transmission character/byte
+} getChillerInfoResp_t;
+const uint16_t len_getChillerInfoResp_t = sizeof(getChillerInfoResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getTECInfoMsg
+{
+    msgHeader_t header;
+    uint16_t    tec_address;    // uint16_6 - TEC address
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getTECInfoMsg_t;
+const uint16_t len_getTECInfoMsg_t = sizeof(getTECInfoMsg_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getTECInfoMsgResp
+{
+    msgHeader_t header;
+    uint16_t    result;         // 0 - failed to get; 1 - successfully set
+    uint16_t    tec_address;    // uint16_6 - TEC address
+    uint32_t    deviceType;     // meerstetter device type, see MeCom Protocol Specification 5117C.pdf
+    uint32_t    hwVersion;      // meerstetter h/w version
+    uint32_t    fwVersion;      // meerstetter f/w version
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    uint16_t    pad;
+    #endif
+    uint32_t    serialNumber;   // meerstetter serial number
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getTECInfoMsgResp_t;
+const uint16_t len_getTECInfoMsgResp_t = sizeof(getTECInfoMsgResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
 typedef struct _startUpCmd
 {
     msgHeader_t header;
@@ -366,10 +461,14 @@ class controlProtocol
     bool    GetHumidityThreshold(uint16_t, uint16_t*);
     bool    SetTECTemperature(uint16_t, uint16_t, float);
     bool    GetTECTemperature(uint16_t, uint16_t, float*);
+    bool    StartChiller(uint16_t);
+    bool    StopChiller(uint16_t);
+    bool    GetChillerInfo(uint16_t, char*, uint8_t);
     bool    SetChillerTemperature(uint16_t, float);
     bool    GetChillerTemperature(uint16_t, float*);
     bool    EnableTECs(uint16_t);
     bool    DisableTECs(uint16_t);
+    bool    GetTECInfo(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
 
     // master - control/test PC USB or serial interface
     bool        TxCommandUSB(uint16_t);    // uses m_buff and m_seqNum
@@ -432,6 +531,12 @@ class controlProtocol
     uint16_t    Make_getTECTemperatureResp(uint16_t, uint8_t*, uint16_t, float, uint16_t);
     void        Parse_getTECTemperatureResp(uint8_t*, float*, uint16_t*);
 
+    uint16_t    Make_getTECInfoMsg(uint16_t, uint8_t*, uint16_t);
+    uint16_t    Make_getTECInfoMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint32_t, 
+                                            uint32_t, uint32_t, uint32_t, uint16_t);
+    void        Parse_getTECInfoMsgResp(uint8_t*, uint16_t*, uint32_t*, uint32_t*, uint32_t*,
+                                                                uint32_t*, uint16_t*);
+
     uint16_t    Make_enableTECs(uint16_t, uint8_t*);
     uint16_t    Make_enableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     void        Parse_enableTECsResp(uint8_t*, uint16_t*, uint16_t*);
@@ -439,6 +544,18 @@ class controlProtocol
     uint16_t    Make_disableTECs(uint16_t, uint8_t*);
     uint16_t    Make_disableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     void        Parse_disableTECsResp(uint8_t*, uint16_t*, uint16_t*);
+
+    uint16_t    Make_startChillerMsg(uint16_t, uint8_t*);
+    uint16_t    Make_startChillerMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    void        Parse_startChillerMsgResp(uint8_t*, uint16_t*, uint16_t*);
+
+    uint16_t    Make_stopChiller(uint16_t, uint8_t*);
+    uint16_t    Make_stopChillerResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    void        Parse_stopChillerResp(uint8_t*, uint16_t*, uint16_t*);
+
+    uint16_t    Make_getChillerInfo(uint16_t, uint8_t*);
+    uint16_t    Make_getChillerInfoResp(uint16_t, uint8_t*, uint16_t, uint8_t*, uint8_t, uint16_t);
+    void        Parse_getChillerInfoResp(uint8_t*, uint16_t*, char*, uint8_t, uint16_t*);
 
     uint16_t    Make_setChillerTemperature(uint16_t, uint8_t*, float);
     uint16_t    Make_setChillerTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t);

@@ -744,6 +744,8 @@ bool huber::StartChiller()
             #endif
             return(false);
         }
+
+        chillerInitialized = true;
     }
     
     //
@@ -1116,6 +1118,12 @@ float huber::GetExternalTempFloat() const
 const char* huber::GetAlarms() const
 {
     return(huberData.alarmStatus);
+}
+
+
+const char* huber::GetSlaveName() const
+{
+    return(slaveName);
 }
 
 

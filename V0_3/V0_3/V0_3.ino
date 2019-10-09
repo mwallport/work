@@ -424,7 +424,7 @@ bool getStatus()
     //
     // check the chiller and TECS run every X seconds
     //
-    if( (10000 < (currentGetStatusTime - lastGetStatusTime)) )
+    if( (30000 < (currentGetStatusTime - lastGetStatusTime)) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.println("gathering status...");
@@ -945,6 +945,24 @@ void handleMsgs()
                 break;
             };
 
+            case startChillerMsg:
+            {
+                handleStartChillerMsg();
+                break;
+            };
+
+            case stopChiller:
+            {
+                handleStopChiller();
+                break;
+            };
+
+            case getChillerInfo:
+            {
+                handleGetChillerInfo();
+                break;
+            };
+
             case setChillerTemperature:      // target TEC m_address and temp
             {
                 handleSetChillerTemperature();
@@ -954,6 +972,12 @@ void handleMsgs()
             case getChillerTemperature:      // target TEC m_address and temp
             {
                 handleGetChillerTemperature();
+                break;
+            };
+
+            case getTECInfoMsg:
+            {
+                handlGetTECInfo();
                 break;
             };
 
@@ -1955,6 +1979,227 @@ void handleGetTECTemperature()
 }
 
 
+void handleStartChillerMsg()
+{
+    startChillerMsg_t* pstartChillerMsg = reinterpret_cast<startChillerMsg_t*>(cp.m_buff);
+    uint16_t    respLength;
+    uint16_t    result = 0;
+
+
+    //
+    // verify the received packet, here beause this is a startChillerMsgCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pstartChillerMsg->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_startChillerMsg_t,
+                    ntohs(pstartChillerMsg->crc), ntohs(pstartChillerMsg->eop))) )
+        {
+            //
+            // start the TECs, chiller, sensor ...
+            //
+            // startChiller() checks whethet the humidity in the system is too high
+            // TODO: call chller.startChiller() instead, i.e. start up w/o concern for humidity ?
+            //
+            if( (startChiller()) )
+            {
+                result  = 1;
+
+            } else
+            {
+                #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println(__PRETTY_FUNCTION__); Serial.println(" ERROR: start chiller failed");
+                Serial.flush();
+                #endif
+                result  = 0;
+            }
+
+            respLength = cp.Make_startChillerMsgResp(cp.m_peerAddress, cp.m_buff,
+                result, pstartChillerMsg->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pstartChillerMsg->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pstartChillerMsg->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void handleStopChiller()
+{
+    stopChiller_t* pstopChiller = reinterpret_cast<stopChiller_t*>(cp.m_buff);
+    uint16_t    respLength;
+    uint16_t    result = 0;
+
+
+    //
+    // verify the received packet, here beause this is a stopChillerCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pstopChiller->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_stopChiller_t,
+                    ntohs(pstopChiller->crc), ntohs(pstopChiller->eop))) )
+        {
+            //
+            // stop chiller, this will cause getStatus to shut everything
+            // else down too though
+            //
+            if(chiller.StopChiller())
+            {
+                result  = 1;
+            } else
+            {
+                #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println(__PRETTY_FUNCTION__); Serial.println(" ERROR: stop chiller failed");
+                Serial.flush();
+                #endif
+                result  = 0;
+            }
+
+            respLength = cp.Make_stopChillerResp(cp.m_peerAddress, cp.m_buff,
+                result, pstopChiller->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pstopChiller->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pstopChiller->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void handleGetChillerInfo()
+{
+    getChillerInfo_t* pgetChillerInfo = reinterpret_cast<getChillerInfo_t*>(cp.m_buff);
+    uint16_t    respLength;
+    uint16_t    result = 0;
+
+
+    //
+    // verify the received packet, here beause this is a getChillerInfoCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pgetChillerInfo->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_getChillerInfo_t,
+                    ntohs(pgetChillerInfo->crc), ntohs(pgetChillerInfo->eop))) )
+        {
+            //
+            // start the TECs, chiller, sensor ...
+            //
+            // startChiller() checks whethet the humidity in the system is too high
+            // TODO: call chller.startChiller() instead, i.e. start up w/o concern for humidity ?
+            //
+            result  = 1;
+
+            respLength = cp.Make_getChillerInfoResp(cp.m_peerAddress, cp.m_buff,
+                result, reinterpret_cast<const uint8_t*>(chiller.GetSlaveName()),
+                MAX_SLAVE_NAME_LENGTH, pgetChillerInfo->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pgetChillerInfo->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pgetChillerInfo->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
 void handleSetChillerTemperature()
 {
     setChillerTemperature_t* psetChillerTemperature = reinterpret_cast<setChillerTemperature_t*>(cp.m_buff);
@@ -2091,6 +2336,80 @@ void handleGetChillerTemperature()
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pgetChillerTemperature->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void handlGetTECInfo()
+{
+    getTECInfoMsg_t*   pgetTECInfo = reinterpret_cast<getTECInfoMsg_t*>(cp.m_buff);
+    uint16_t        respLength;
+    uint16_t        result = 0;
+    uint32_t        deviceType  = 0;
+    uint32_t        hwVersion   = 0;
+    uint32_t        fwVersion   = 0;
+    uint32_t        serialNumber= 0;
+
+
+    if( (ntohs(pgetTECInfo->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_getTECInfoMsg_t,
+                                ntohs(pgetTECInfo->crc), ntohs(pgetTECInfo->eop))) )
+        {
+            //
+            // chiller informaion is gotton during getStatus
+            //
+            if( (getTECInfo(ntohs(pgetTECInfo->tec_address), &deviceType,
+                                &hwVersion, &fwVersion, &serialNumber)) )
+            {
+                result  = 1;
+            } else
+            {
+                #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to startTECs");
+                Serial.flush();
+                #endif
+                result  = 0;
+            }
+
+            respLength = cp.Make_getTECInfoMsgResp(cp.m_peerAddress, cp.m_buff, htons(pgetTECInfo->tec_address), result,
+                                deviceType, hwVersion, fwVersion, serialNumber, pgetTECInfo->header.seqNum);
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pgetTECInfo->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pgetTECInfo->header.address.address));
         Serial.flush();
     #endif
     }
@@ -2735,6 +3054,27 @@ bool goodTECStatus()
         sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Stopped;
     else
         sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Running;
+
+    return(retVal);
+}
+
+
+// careful . . tec_address is a
+bool getTECInfo(uint8_t tec_address, uint32_t* deviceType, uint32_t* hwVersion,
+                                        uint32_t* fwVersion, uint32_t* serialNumber)
+{
+    bool retVal = true;
+
+
+    Serial.print("getting TEC info for address: "); Serial.println(tec_address);  // TODO: remove
+
+    if( !(ms.GetTECInfo(tec_address, deviceType, hwVersion, fwVersion, serialNumber)) )
+    {
+        retVal  = false;
+        #ifdef __DEBUG_VIA_SERIAL__
+        Serial.println(__PRETTY_FUNCTION__); Serial.println(" getTECInfo failed");
+        #endif
+    }
 
     return(retVal);
 }

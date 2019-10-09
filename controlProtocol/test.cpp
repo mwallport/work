@@ -14,20 +14,61 @@ int main(int argc, char** argv)
     uint16_t    threshold;
     uint16_t    result;
     uint16_t    destAddress = 1;
+    uint32_t    deviceType;
+    uint32_t    serialNumber;
+    uint32_t    fwVersion;
+    uint32_t    hwVersion;
+    char        ChillerInfo[100];
     float       humidity    = 39.04;
     float       temperature = 0;
     controlProtocol cpUSB(0, 1, "/dev/ttyUSB0", 9600); // my address, peer address, usb file
 
 
-/*
+
+    if( (cpUSB.GetChillerInfo(1, ChillerInfo, 100)) ) // works
+    {
+        printf("++++++++++++++++++++++++GetChillerInfo cmd good\n");
+        printf("got info: %s\n", ChillerInfo);
+    } else
+    {
+        printf("-------------------GetChillerInfo bad\n");
+    }
+
+    printf("\n\n");
+    sleep(5);
+
+    if( (cpUSB.GetTECInfo(1, 2, &deviceType, &hwVersion, &fwVersion, &serialNumber)) ) // works
+    {
+        printf("++++++++++++++++++++++++GetTECInfo cmd good\n");
+        printf("deviceType 0x%04X, hwVersion 0x%04X, fwVersion 0x%04X, serialNumber 0x%04X", 
+            deviceType, hwVersion, fwVersion, serialNumber);
+    } else
+        printf("-------------------GetTECInfo bad\n");
+    printf("\n\n");
+    sleep(5);
+
+    if( (cpUSB.StartChiller(1)) ) // works
+        printf("++++++++++++++++++++++++StartChiller cmd good\n");
+    else
+        printf("------------------- StartChiller cmd bad\n");
+    printf("\n\n");
+    sleep(5);
+    
+    if( (cpUSB.StopChiller(1)) ) // works
+        printf("++++++++++++++++++++++++StopChiller cmd good\n");
+    else
+        printf("------------------- StopChiller cmd bad\n");
+    printf("\n\n");
+    sleep(5);
+
     if( (cpUSB.StartUpCmd(1)) ) // working- takes too long, this program times out waiting for reply
         printf("++++++++++++++++++++++++StartUpCmd good\n");
     else
         printf("-------------------StartUpCmd bad\n");
     printf("\n\n");
+    sleep(5);
 
-    sleep(2);
-
+/*
     if( (cpUSB.GetStatus(destAddress, &humidityAlert, &TECsRunning, &chillerOnLine)) ) // not working
     {
         printf("++++++++++++++++++++got: humidityAlert %hu, TECsRunning %hu, chillerOnLine %hu\n",
@@ -48,7 +89,7 @@ int main(int argc, char** argv)
 
     sleep(2);
 
-    if( (cpUSB.SetHumidityThreshold(1, 57)) )  // working
+    if( (cpUSB.SetHumidityThreshold(1, 68)) )  // working
         printf("+++++++++++++++++++++success on set humidity threshold\n");
     else
         printf("---------------------fail on set humidity threshold\n");
@@ -71,7 +112,6 @@ int main(int argc, char** argv)
     printf("\n\n");
 
     sleep(2);
-*/
 
     if( (cpUSB.SetTECTemperature(1, 2, -10.01)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
@@ -104,7 +144,6 @@ int main(int argc, char** argv)
         printf("---------------------failed to get chiller temperature\n");
     printf("\n\n");
     sleep(2);
-/*
 
     if( (cpUSB.EnableTECs(1)) )
         printf("+++++++++++++++++++++success on enable TECs\n");
@@ -129,7 +168,7 @@ int main(int argc, char** argv)
 
     sleep(2);
 */
-
     return(0);
+
 }
 

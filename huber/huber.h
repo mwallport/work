@@ -86,6 +86,7 @@ class huber
     const char* GetInternalTemp() const;
     const char* GetExternalTemp() const;
     const char* GetAlarms() const;
+    const char* GetSlaveName() const;
 
 
     protected:
