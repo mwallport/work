@@ -25,6 +25,7 @@ int main(int argc, char** argv)
 
 
 
+/*
     if( (cpUSB.GetChillerInfo(1, ChillerInfo, 100)) ) // works
     {
         printf("++++++++++++++++++++++++GetChillerInfo cmd good\n");
@@ -67,8 +68,8 @@ int main(int argc, char** argv)
         printf("-------------------StartUpCmd bad\n");
     printf("\n\n");
     sleep(5);
+*/
 
-/*
     if( (cpUSB.GetStatus(destAddress, &humidityAlert, &TECsRunning, &chillerOnLine)) ) // not working
     {
         printf("++++++++++++++++++++got: humidityAlert %hu, TECsRunning %hu, chillerOnLine %hu\n",
@@ -145,6 +146,7 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(2);
 
+/*
     if( (cpUSB.EnableTECs(1)) )
         printf("+++++++++++++++++++++success on enable TECs\n");
     else
@@ -167,8 +169,9 @@ int main(int argc, char** argv)
     printf("\n\n");
 
     sleep(2);
-*/
+
     return(0);
+*/
 
 }
 

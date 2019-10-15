@@ -34,7 +34,7 @@
 #define HUMIDITY_NRML_OFFSET    6   // 2 msgs, good and bad
 #define HUMIDITY_FAIL_OFFSET    7   // 2 msgs, good and bad
 #define MAX_LCD_MSGS            (HUMIDITY_FAIL_OFFSET + 1)
-#define MAX_MSG_DISPLAY_TIME    3000    // 3K ms ~= 3 secons per message
+#define MAX_MSG_DISPLAY_TIME    1500    // 1.5 minimum seconds per message
 
 
 
@@ -110,7 +110,7 @@ lcdFunc lcdFaces[MAX_LCD_FUNC] =
 
 
 //
-// running status - updated by getStatus and set commands
+// running status for components - updated by getStatus and set commands
 //
 typedef enum { offline, online, running, stopped, shutdown } runningStates;
 
@@ -172,6 +172,7 @@ int       lastCount       = HUMIDITY_THRESHOLD;
 volatile  int virtualPosition = HUMIDITY_THRESHOLD;
 
 
+typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
 
 
 #endif

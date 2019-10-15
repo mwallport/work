@@ -1,5 +1,6 @@
 // file controlProtocol.cpp
-#include "controlProtocol.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef __RUNNING_ON_CONTROLLINO__
     #if defined(ARDUINO) && ARDUINO >= 100
@@ -9,16 +10,10 @@
     #endif
 #endif
 
+#include "controlProtocol.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#ifdef __RUNNING_ON_CONTROLLINO__
-#else
-#include <arpa/inet.h>
-#endif
-
-#include "crc16.h"
 #ifdef __USING_LINUX_USB__
+#include <arpa/inet.h>
 #include <string.h>  /* String function definitions */
 #include <unistd.h>  /* UNIX standard function definitions */
 #include <fcntl.h>   /* File control definitions */
@@ -26,6 +21,28 @@
 #include <termios.h> /* POSIX terminal control definitions */
 #endif
 
+
+// crc16.cpp
+uint16_t getCRC16(uint16_t CRC, uint8_t byte)
+{
+    CRC = ( (CRC % 256) << 8 ) ^ ( CRC16_table_C[ (CRC >> 8) ^ byte ] );
+    return (CRC);
+}
+
+
+uint16_t calcCRC16(uint8_t* pBuff, uint16_t length)
+{
+    uint16_t    CRC = 0;
+
+
+    for(uint16_t i = 0; i < length; i++)
+    {
+        CRC = getCRC16(CRC, pBuff[i]);
+    }
+
+    return(CRC);
+}
+// end crc16.cpp
 
 
 bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)

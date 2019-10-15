@@ -16,7 +16,6 @@
 // class definitions
 //
 huber::huber(uint32_t Speed)
- : chillerInitialized(false)
 {
     //
     // initialize slaveID to '01'
@@ -48,9 +47,9 @@ bool huber::TxCommand()
     bool    retVal  = true;
 
 
-    // class member Buff is filled in by the member functions
-    //lenWritten = mySerial2.write(Buff);
-    //mySerial2.flush();
+    // clear the input buffer prior to sending to clear
+    // out any old responses - happens on link fail tests
+    ClearInputBuff(); 
     lenWritten = Serial2.write(Buff);
     Serial2.flush();
 
@@ -187,15 +186,13 @@ bool huber::sendVerifyCommand()
     uint8_t retry       = 0;
 
 
-    // save a copy of the Tx packet for re-trasmits
-    memcpy(static_cast<void*>(Bkup), static_cast<void*>(Buff), MAX_BUFF_LENGTH + 1);
-
     do
     {
         //
         // build the Verify command
         //
         memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+        count = 0;
         Buff[count++] = '[';
         Buff[count++] = 'M';
         Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -234,10 +231,8 @@ bool huber::sendVerifyCommand()
             //
             // RxResponse also verifies the length and checksum
             //
-            if( (RxResponse(0, 5000)) ) // wait max 5000ms for reply and no retBuff
+            if( (RxResponse(0, 3500)) ) // wait max 3500ms for reply and no retBuff
             {
-                cmdTxAckRx = true;
-    
                 //
                 // packet length must at least be 11 bytes long - this is a one charater name
                 //
@@ -273,7 +268,8 @@ bool huber::sendVerifyCommand()
                         Serial.flush();
                         #endif
     
-                        retVal  = true;
+                        retVal      = true;
+                        cmdTxAckRx  = true;
         
                     #ifdef __DEBUG_HUBER_ERROR__
                     } else
@@ -309,7 +305,6 @@ bool huber::sendVerifyCommand()
             Serial.println("--------- resending packet ----------");
             Serial.flush();
             #endif
-            memcpy(static_cast<void*>(Buff), static_cast<void*>(Bkup), MAX_BUFF_LENGTH + 1);
         }
 
     } while( (!cmdTxAckRx) && (++retry < MAX_COMMAND_RETRY) );
@@ -331,9 +326,6 @@ bool huber::sendLimitCommand()
     uint8_t retry       = 0;
 
 
-    // save a copy of the Tx packet for re-trasmits
-    memcpy(static_cast<void*>(Bkup), static_cast<void*>(Buff), MAX_BUFF_LENGTH + 1);
-
     do
     {
         //
@@ -342,6 +334,7 @@ bool huber::sendLimitCommand()
         // master: [M01L0F********1B\r
         // slave:  [S01L17F4484E20F4484E2045\r
         memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+        count = 0;
         Buff[count++] = '[';
         Buff[count++] = 'M';
         Buff[count++] = slaveID[0];    // assuming slave address is "01"
@@ -382,10 +375,8 @@ bool huber::sendLimitCommand()
             //
             // RxResponse also verifies the length and checksum
             //
-            if( (RxResponse(0, 5000)) ) // wait max 5000ms for reply and no retBuff
+            if( (RxResponse(0, 3500)) ) // wait max 3500ms for reply and no retBuff
             {
-                cmdTxAckRx = true;
- 
                 //
                 // packet length must at least be 11 bytes long - this is a one charater name
                 //
@@ -428,7 +419,8 @@ bool huber::sendLimitCommand()
                         Serial.flush();
                         #endif
     
-                        retVal  = true;
+                        retVal      = true;
+                        cmdTxAckRx  = true;
         
                     #ifdef __DEBUG_HUBER_ERROR__
                     } else
@@ -464,7 +456,6 @@ bool huber::sendLimitCommand()
             Serial.println("--------- resending packet ----------");
             Serial.flush();
             #endif
-            memcpy(static_cast<void*>(Buff), static_cast<void*>(Bkup), MAX_BUFF_LENGTH + 1);
         }
 
     } while( (!cmdTxAckRx) && (++retry < MAX_COMMAND_RETRY) );
@@ -492,15 +483,16 @@ bool huber::sendGeneralCommand()
     // save a copy of the Tx packet for re-trasmits
     memcpy(static_cast<void*>(Bkup), static_cast<void*>(Buff), MAX_BUFF_LENGTH + 1);
 
-    #ifdef __DEBUG_PKT_TX__
-    Serial.print("sendGeneralCommand is sending: ");
-    Serial.flush();
-    Serial.println(Buff);
-    Serial.flush();
-    #endif
 
     do
     {
+        #ifdef __DEBUG_PKT_TX__
+        Serial.print("sendGeneralCommand is sending: ");
+        Serial.flush();
+        Serial.println(Buff);
+        Serial.flush();
+        #endif
+
         //
         // Tx the command
         //
@@ -509,10 +501,8 @@ bool huber::sendGeneralCommand()
             //
             // RxResponse also verifies the length and checksum
             //
-            if( (RxResponse(0, 5000)) ) // wait max 5000ms for reply and no retBuff
+            if( (RxResponse(0, 3500)) ) // wait max 3500ms for reply and no retBuff
             {
-                cmdTxAckRx = true;
-
                 //
                 // packet length must at least be 11 bytes long - this is a one charater name
                 //
@@ -566,7 +556,7 @@ bool huber::sendGeneralCommand()
                         #ifdef __DEBUG_HUBER__
                         Serial.println("sendGeneralCommand found the following:");
                         Serial.flush();
-                        Serial.print("huberData.tempCtrlMode 0x");
+                        Serial.print("huberData.tempCtrlMode ");
                         Serial.flush();
                         Serial.println(huberData.tempCtrlMode);
                         Serial.flush();
@@ -588,7 +578,8 @@ bool huber::sendGeneralCommand()
                         Serial.flush();
                         #endif
     
-                        retVal  = true;
+                        retVal      = true;
+                        cmdTxAckRx  = true;
         
                     #ifdef __DEBUG_HUBER_ERROR__
                     } else
@@ -637,39 +628,37 @@ bool huber::sendGeneralCommand()
 //
 // helper functions
 //
-
-bool huber::InitChiller()
+bool huber::GetAllChillerInfo()
 {
-    if( !(chillerInitialized) ) 
+    bool    retVal  = true;
+
+
+    // try to get all stats
+    if( !(sendVerifyCommand()) )
     {
-        if( !(sendVerifyCommand()) )
-        {
-            #ifdef __DEBUG_HUBER_ERROR_
-            Serial.println("InitChiller unable to sendVerifyCommand");
-            #endif
-            return(false);
-        }
-
-        if( !(sendLimitCommand()) )
-        {
-            #ifdef __DEBUG_HUBER_ERROR_
-            Serial.println("InitChiller unable to sendLimitCommand");
-            #endif
-            return(false);
-        }
-
-        if( !(getChillerStatus()) )  // general command, all '*'
-        {
-            #ifdef __DEBUG_HUBER_ERROR_
-            Serial.println("InitChiller unable to getChillerStatus");
-            #endif
-            return(false);
-        }
-
-        chillerInitialized = true;
+        #ifdef __DEBUG_HUBER_ERROR_
+        Serial.println("GetAllChillerInfo unable to sendVerifyCommand");
+        #endif
+        retVal = false;
     }
 
-    return(true);
+    if( !(sendLimitCommand()) )
+    {
+        #ifdef __DEBUG_HUBER_ERROR_
+        Serial.println("GetAllChillerInfo unable to sendLimitCommand");
+        #endif
+        retVal = false;
+    }
+
+    if( !(getChillerStatus()) )  // general command, all '*'
+    {
+        #ifdef __DEBUG_HUBER_ERROR_
+        Serial.println("GetAllChillerInfo unable to getChillerStatus");
+        #endif
+        retVal = false;
+    }
+
+    return(retVal);
 }
 
 
@@ -732,22 +721,6 @@ bool huber::StartChiller()
     uint8_t count   = 0;
 
 
-    if( !(chillerInitialized) ) 
-    {
-        if( !(InitChiller()) )
-        {
-            //
-            // must execute InitChiller 1st
-            //
-            #ifdef __DEBUG_HUBRER_ERROR__
-            Serial.println("ERROR : unable InitChiller from StartChiller");
-            #endif
-            return(false);
-        }
-
-        chillerInitialized = true;
-    }
-    
     //
     // enable the internal temp control and the pump for StartChiller
     //
@@ -848,21 +821,6 @@ bool huber::ChillerRunning()
     bool    retVal  = false;
 
 
-    if( !(chillerInitialized) ) 
-    {
-        if( !(InitChiller()) )
-        {
-            //
-            // must execute InitChiller 1st
-            //
-            #ifdef __DEBUG_HUBER_ERROR__
-            Serial.println("ERROR : unable to InitChiller from ChillerRunning");
-            #endif
-            return(false);
-        }
-    }
-    
-
     //
     // fetch the chiller's status and update the huberData structure
     //
@@ -901,12 +859,6 @@ bool huber::StopChiller()
 {
     bool    retVal  = false;
     uint8_t count   = 0;
-
-
-    //
-    // update chillerRunning - assuming the G command will work below
-    //
-    chillerInitialized = false;
 
 
     //
@@ -1061,6 +1013,12 @@ const char* huber::GetInternalTemp() const
 const char* huber::GetExternalTemp() const
 {
     return(huberData.externalTemp);
+}
+
+
+const char huber::GetTempCtrlMode() const
+{
+    return(huberData.tempCtrlMode[0]);
 }
 
 
@@ -1278,22 +1236,9 @@ bool huber::verifyLengthAndCheckSum()
     //
     sscanf(reinterpret_cast<char*>(&intStr[2]), "%2hX", &chkSum);
 
-/*
-    if( (chkSum < 0x0100) )
-    {
-        // take array locations 0 and 1
-        sscanf(reinterpret_cast<char*>(intStr), "%2hX", &chkSum);
-    } else
-    {
-        // number is big, take the the array locations 2 and 3, this is the low nibble
-        sscanf(reinterpret_cast<char*>(&intStr[2]), "%2hX", &chkSum);
-    }
-*/
-
     //
     // now have calculated chkSum and packetChkSum, compare those f*ckers !
     //
-
     #ifdef __DEBUG_HUBER__
     Serial.print("verifyLengthAndCheckSum comparing chkSum and packetChkSum: 0x");
     Serial.flush();
@@ -1314,4 +1259,10 @@ bool huber::verifyLengthAndCheckSum()
     return(retVal);
 }
 
+
+void huber::ClearInputBuff()
+{
+    while( (Serial2.available()) )
+        Serial2.read();
+}
 

@@ -8,17 +8,13 @@
    #endif
 #include <SoftwareSerial.h>
 
-#define MAX_STARTUP_ATTEMPTS 1
-#define MAX_SHUTDOWN_ATTEMPTS 1
-
 //#define __DEBUG_PKT_RX__
 //#define __DEBUG_PKT_TX__
-//#define __DEBUG_FUNC_HUBER__
 //#define __DEBUG_HUBER2__
 //#define __DEBUG_HUBER__
 //#define __DEBUG_HUBER_ERROR__
 
-const uint8_t MAX_COMMAND_RETRY             = 3;
+const uint8_t MAX_COMMAND_RETRY             = 5;
 const uint8_t MAX_BUFF_LENGTH               = 32; 
 const uint8_t MAX_SLAVE_ID_LENGTH           = 2;
 const uint8_t MAX_SLAVE_NAME_LENGTH         = 20;
@@ -73,7 +69,7 @@ class huber
     // helper functions
     //
     bool  getChillerStatus();
-    bool  InitChiller();
+    bool  GetAllChillerInfo();
     bool  StartChiller();
     bool  StopChiller();
     bool  ChillerRunning();
@@ -87,6 +83,7 @@ class huber
     const char* GetExternalTemp() const;
     const char* GetAlarms() const;
     const char* GetSlaveName() const;
+    const char GetTempCtrlMode() const;
 
 
     protected:
@@ -98,6 +95,7 @@ class huber
     bool    RxResponse(char**, uint32_t TimeoutMs);
     bool    verifyLengthAndCheckSum();
     void    setLengthAndCheckSum();
+    void    ClearInputBuff();
 
     // software serial connection
     //SoftwareSerial mySerial2;
@@ -105,9 +103,6 @@ class huber
     // working buffers
     char    Buff[MAX_BUFF_LENGTH + 1];
     char    Bkup[MAX_BUFF_LENGTH + 1];  // for packet Tx retry
-
-    // bool to determine whether the chiller has been started by this class
-    bool    chillerInitialized;
 
     // huber chiller data
     char    slaveID[MAX_SLAVE_ID_LENGTH + 1];
