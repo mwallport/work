@@ -4,7 +4,6 @@
 #include <LiquidCrystal.h>      // LCD interface library
 #include <Wire.h>               // I2C library, needed by SHTSensor
 #include "SHTSensor.h"          // SHT sensor interface library
-#include <AceButton.h>
 #include <controlProtocol.h>
 #include <huber.h>              // huber chiller communication library
 #include <meerstetterRS485.h>   // meerstetter TEC communication library
@@ -46,30 +45,12 @@ controlProtocol cp(1, 0, 9600);  // my address is 1, control address is 0
 
 
 //
-// configure the ace button
+// configure the button
 //
 // The pin number attached to the button.
 const int BUTTON_PIN = 3;
-#ifdef ESP32
-  // Different ESP32 boards use different pins
-  const int LED_PIN = 2;
-#else
-  const int LED_PIN = LED_BUILTIN;
-#endif
-
-// LED states. Some microcontrollers wire their built-in LED the reverse.
-const int LED_ON = HIGH;
-const int LED_OFF = LOW;
-
-//
-// One button wired to the pin at BUTTON_PIN. Automatically uses the default
-// ButtonConfig. The alternative is to call the AceButton::init() method in
-// setup() below.
-//
 bool currentButtonOnOff = false;
 volatile bool buttonOnOff = false;
-ace_button::AceButton button(BUTTON_PIN);
-void handleEvent(ace_button::AceButton*, uint8_t, uint8_t);
 
 //
 // Using the RTC to prevent getStatus() from failing while the rotary
@@ -138,13 +119,13 @@ void setup()
     //
     // register the ISR for the digital encoder
     //
-    initRotaryEncoder();
+    enableRotaryEncoder();
     
 
     //
     // initialize the button
     //
-    initButton();
+    configureButton();
 
 
     //
@@ -156,12 +137,6 @@ void setup()
 
 void loop()
 { 
-    //
-    // Should be called every 4-5ms or faster, for the default debouncing time
-    // of ~20ms.
-    button.check();
-
-
     //
     // getStatus will update LCD and sysStats data structure
     //
@@ -186,7 +161,7 @@ void loop()
 // all LCD calls are void, no way to tell if the LCD is up .. 
 bool startLCD()
 {
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -207,7 +182,7 @@ bool startSHTSensor()
 {
     bool retVal = false;
 
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -258,11 +233,19 @@ bool startUp()
     bool retVal = true;
 
 
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
+ 
+    //
+    // if humidity is too high, or there is a humidity sensor failure,
+    // do not start the chiller - return failure
+    //
+    if( (humidityHigh()) )
+        return(false);    
+    
     //
     // paint 'Starting' on LCD
     //
@@ -306,48 +289,45 @@ void getStatus()
     static unsigned long    lastGetStatusTime     = 0;
     unsigned long           currentGetStatusTime  = millis();
     int                     currTime, RTCdiff;
+    static bool             getChiller  = true;
 
-
-    #ifdef __DEBUG2_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.println(__PRETTY_FUNCTION__);
-    Serial.print("currentGetStatusTime: "); Serial.println(currentGetStatusTime);
-    Serial.print("lastGetStatusTime: "); Serial.println(lastGetStatusTime);
-    #endif
 
     //
     // get the chiller and TEC's status every 20 seconds
     //
-    if( (10000 < (currentGetStatusTime - lastGetStatusTime)) )
+    if( (GET_STATUS_INTERVAL < (currentGetStatusTime - lastGetStatusTime)) )
     {
+        #ifdef __DEBUG_VIA_SERIAL__
+        Serial.println("---------------------------------------");
+        Serial.println(__PRETTY_FUNCTION__);
+        //Serial.print("currentGetStatusTime: "); Serial.println(currentGetStatusTime);
+        //Serial.print("lastGetStatusTime: "); Serial.println(lastGetStatusTime);
+        #endif
+        
         lastGetStatusTime = currentGetStatusTime;
 
         //
-        // this doesn't matter .. what if the user is grabbing the know 'now' ... lamer ...
-        //
-        currTime = RTCSum();
-        RTCdiff = (currTime - knobTime); // could be negative is the knob is a' turnin' ..
-
-        if( (5 > (currTime - knobTime)) )
-            return;
-
-        // disable interrupts when doing protocol stuff - disable the knob state-lessly
-        //noInterrupts();
-
-        //
-        // hmm I wonder if these use interrupts !!
+        // check the components
         //
         getHumidityLevel();
-        handleChillerStatus();
-        handleTECStatus();
+
+        // TODO: flip flop between chiller and TECs .. ?
+        if( (getChiller) )
+        {
+          handleChillerStatus();
+          getChiller = false;
+        } else
+        {
+          handleTECStatus();
+          getChiller = true;
+        }
 
         //
         // if humidity too high, shutdown the chiller
         //
         // TODO: shutdown just the chiller or the TECs too ?
         //
-        if( ((sysStates.sensor.humidity > sysStates.sensor.threshold) 
-                                || (offline == sysStates.sensor.online)) )
+        if( (humidityHigh()) )
         {
             if( (SHUTDOWN != getSystemStatus()) )
                 shutDownSys();
@@ -355,11 +335,9 @@ void getStatus()
 
         //
         // set the LCD state for the overall system based on the
-        // gathered information and enable/disable interrupts as
+        // gathered information and attach/detach knob interrupts as
         // needed, i.e. shutdown or not
         //
-        //if( (SHUTDOWN == getSystemStatus()) )
-        //    interrupts();
         getSystemStatus();
     }
 }
@@ -427,7 +405,7 @@ bool shutDownSys()
 //
 bool startChiller()
 {
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -439,8 +417,7 @@ bool startChiller()
     // if humidity is too high, or there is a humidity sensor failure,
     // do not start the chiller - return failure
     //
-    if( ((sysStates.sensor.humidity > sysStates.sensor.threshold) 
-        || (offline == sysStates.sensor.online)) )
+    if( (humidityHigh()) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.print(__PRETTY_FUNCTION__);
@@ -493,7 +470,7 @@ bool startTECs()
     bool    TECsRunning = true;
 
 
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -597,7 +574,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
     bool retVal = false;
 
 
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -632,7 +609,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
 
 bool setChillerSetPoint(char* temp)
 {
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -1154,7 +1131,17 @@ void handleStartUpCmd()
             // start the TECs, chiller, sensor ...
             //
             if( (startUp()) )
+            {
                 result  = 1;
+                
+                //
+                // adjust the button
+                //
+                buttonOnOff = true;
+                currentButtonOnOff = buttonOnOff;
+            } else
+                getSystemStatus();  // derive the button state
+                
 
             respLength = cp.Make_startUpCmdResp(cp.m_peerAddress, cp.m_buff,
                 result, pstartUpCmd->header.seqNum
@@ -1219,7 +1206,16 @@ void handleShutDownCmd()
             // call shutDown()
             //
             if( (shutDownSys()) )
+            {
                 result  = 1;
+                
+                //
+                // adjust the button
+                //
+                buttonOnOff = false;
+                currentButtonOnOff = buttonOnOff;
+            } else
+                getSystemStatus();  // derive the button state
 
             respLength = cp.Make_shutDownCmdResp(cp.m_peerAddress, cp.m_buff,
                 result, pshutDownCmd->header.seqNum
@@ -1287,7 +1283,7 @@ void handleGetStatusCmd()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getStatusResp(cp.m_peerAddress, cp.m_buff,
-                ((sysStates.sensor.humidity > sysStates.sensor.threshold) ? 1 : 0), // humidity alert
+                ((humidityHigh()) ? 1 : 0), // humidity alert
                 ((true == TECsRunning()) ? 1 : 0),                                    // TECs running
                 ((running == sysStates.chiller.state) ? 1 : 0),                     // chiller running
                 pgetStatus->header.seqNum
@@ -2405,7 +2401,7 @@ void initSysStates(systemState& states)
 //
 void manageLCD()
 {
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     Serial.flush();
@@ -2448,7 +2444,7 @@ void manageLCD()
         // - SHT sensor failure
         // in either case the system will be in shutdown mode already or very soon
         //
-        if( (sysStates.sensor.humidity > sysStates.sensor.threshold) )
+        if( (humidityHigh()) )
         {
             lcdFaces[sensor_HighHumidity]();
 
@@ -2478,6 +2474,14 @@ void manageLCD()
 bool getHumidityLevel(void)
 {
     bool retVal = true;
+    bool  tryLater = 
+
+    //
+    // the rotary encoder ISR routine interferes with normal processing
+    // if it has run recently, return success and try later
+    //
+    //if( (rotaryUsedRecently()) )
+    //    return(true);
 
 
     //
@@ -2525,7 +2529,7 @@ bool getHumidityLevel(void)
         if( (sysStates.sensor.sampleData.index >= MAX_HUMIDITY_SAMPLES) )
             sysStates.sensor.sampleData.index = 0;
 
-        if (sysStates.sensor.humidity > sysStates.sensor.threshold)
+        if (humidityHigh())
         {
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: found high humidity: ");
@@ -2575,7 +2579,7 @@ bool TECsRunning()
 }
 
 
-void initRotaryEncoder()
+void enableRotaryEncoder()
 {
     // encoder
     pinMode(pinA, INPUT);
@@ -2594,6 +2598,12 @@ void initRotaryEncoder()
     attachInterrupt(digitalPinToInterrupt(pinA), digitalEncoderISR, CHANGE);
 
     virtualPosition = sysStates.sensor.threshold;
+}
+
+
+void disableRotaryEncoder()
+{
+    detachInterrupt(digitalPinToInterrupt(pinA));
 }
 
 
@@ -2635,35 +2645,15 @@ void digitalEncoderISR()
 }
 
 
-// The event handler for the button.
-void handleEvent(ace_button::AceButton* /* button */, uint8_t eventType, uint8_t buttonState)
-{
-    #ifdef __DEBUG_VIA_SERIAL__
-    // Print out a message for all events.
-    Serial.print(F("handleEvent(): eventType: "));
-    Serial.print(eventType);
-    Serial.print(F("; buttonState: "));
-    Serial.println(buttonState);
-    #endif
-    
-    // Control the LED only for the Pressed and Released events.
-    // Notice that if the MCU is rebooted while the button is pressed down, no
-    // event is triggered and the LED remains off.
-    switch (eventType)
-    {
-/*
-        case AceButton::kEventPressed:
-            break;
-*/
-        case ace_button::AceButton::kEventReleased:
-            buttonOnOff != buttonOnOff;
-            break;
-    }
-}
-
-
 void handleChillerStatus(void)
 {
+    //
+    // the rotary encoder ISR routine interferes with normal processing
+    // if it has run recently, return success and try later
+    //
+    //if( (rotaryUsedRecently()) )
+    //    return;
+
     //
     // get all chiller information
     //
@@ -2719,6 +2709,13 @@ void handleTECStatus(void)
     bool    TECsOnline  = true;
     bool    TECsRunning = true;
 
+
+    //
+    // the rotary encoder ISR routine interferes with normal processing
+    // if it has run recently, return success and try later
+    //
+    //if( (rotaryUsedRecently()) )
+    //    return;
 
     //
     // check all TECs running - get Device Status, possible status are
@@ -2826,30 +2823,6 @@ bool getTECInfo(uint8_t tec_address, uint32_t* deviceType, uint32_t* hwVersion,
 }
 
 
-void initButton()
-{
-    // initialize built-in LED as an output
-    pinMode(LED_PIN, OUTPUT);
-
-    // Button uses the built-in pull up register.
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
-    
-    // Configure the ButtonConfig with the event handler, and enable all higher
-    // level events.
-    ace_button::ButtonConfig* buttonConfig = button.getButtonConfig();
-    buttonConfig->setEventHandler(handleEvent);
-    buttonConfig->setFeature(ace_button::ButtonConfig::kFeatureClick);
-    buttonConfig->setFeature(ace_button::ButtonConfig::kFeatureDoubleClick);
-    buttonConfig->setFeature(ace_button::ButtonConfig::kFeatureLongPress);
-    buttonConfig->setFeature(ace_button::ButtonConfig::kFeatureRepeatPress);
-
-    // Check if the button was pressed while booting
-    if (button.isPressedRaw()) {
-        Serial.println(F("setup(): button was pressed while booting"));
-    }
-}
-
-
 systemStatus getSystemStatus()
 {
     systemStatus    retVal      = RUNNING;
@@ -2878,15 +2851,45 @@ systemStatus getSystemStatus()
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
         retVal  = SHUTDOWN;
+
+        //
+        // adjust the button
+        //
+        buttonOnOff = false;
+        currentButtonOnOff = buttonOnOff;
+
+        // enable the humidity threshold knob
+        enableRotaryEncoder();
+        
     } else if( ((online == sysStates.chiller.online && true == TECsOnline)
                 && (stopped == sysStates.chiller.state || false == TECsRunning)) )
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Ready;
         retVal  = READY;
+        
+        //
+        // adjust the button
+        //
+        buttonOnOff = false;
+        currentButtonOnOff = buttonOnOff;
+
+        // enable the humidity threshold knob
+        enableRotaryEncoder();
+
     } else
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Running;
         retVal  = RUNNING;
+
+        //
+        // adjust the button
+        //
+        buttonOnOff = true;
+        currentButtonOnOff = buttonOnOff;
+
+
+        // disable the humidity threshold knob
+        disableRotaryEncoder();
     }
 
     return(retVal);
@@ -2895,7 +2898,7 @@ systemStatus getSystemStatus()
 
 void startRTC()
 {
-    #ifdef __DEBUG2_VIA_SERIAL__
+    #ifdef __DEBUG_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -2933,4 +2936,62 @@ int RTCSum()
     }
 
     return(sum);
+}
+
+
+void configureButton()
+{
+    pinMode(BUTTON_PIN, INPUT);
+    digitalWrite(BUTTON_PIN, HIGH);
+    attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
+}
+
+
+void buttonISR()
+{
+    static unsigned long  lastInterruptTime = 0;
+    unsigned long         interruptTime     = millis();
+
+    if( (1500 < (interruptTime - lastInterruptTime)) )
+    {
+        buttonOnOff = !buttonOnOff;
+        lastInterruptTime = interruptTime;
+    }
+}
+
+
+bool rotaryUsedRecently()
+{
+    int   currTime, RTCdiff;
+    bool  retVal = false;
+    
+
+    currTime = RTCSum();
+    RTCdiff = (currTime - knobTime); // could be negative is the knob is a' turnin' ..
+
+    if( (10 > (currTime - knobTime)) )
+        retVal = true;
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.print(__PRETTY_FUNCTION__);Serial.print(" returning "); Serial.println(retVal);
+    #endif
+
+    return(retVal);
+}
+
+
+bool humidityHigh()
+{
+    if( ((sysStates.sensor.humidity > sysStates.sensor.threshold) 
+        || (offline == sysStates.sensor.online)) )
+    {
+        #ifdef __DEBUG_VIA_SERIAL__
+        Serial.print(__PRETTY_FUNCTION__);
+        Serial.println(" WARNING: humidity too high or sensor failure");
+        #endif
+
+        return(true);
+    } else
+        return(false);
 }

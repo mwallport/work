@@ -18,6 +18,7 @@
 //
 // constants
 //
+#define GET_STATUS_INTERVAL     10000
 #define HUMIDITY_THRESHOLD      80
 #define PIN_HW_ENABLE_n         8
 #define SWITCH_PIN              9
