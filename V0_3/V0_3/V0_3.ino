@@ -1581,7 +1581,7 @@ void handleGetTECTemperature()
             //
             tecAddress = ntohs(pgetTECTemperature->tec_address);
 
-            if( (MAX_TEC_ADDRESS >= tecAddress) )
+            if( (MAX_TEC_ADDRESS < tecAddress) )
             {
                 //
                 // send back failure

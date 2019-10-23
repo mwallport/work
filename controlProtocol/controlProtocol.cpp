@@ -1677,7 +1677,6 @@ bool controlProtocol::GetTECInfo(uint16_t destAddress, uint16_t tec_address,
             //
             // dump out what we got
             //
-            printf("size of getTECInfoMsgResp_t is: %u\n", sizeof(getTECInfoMsgResp_t));
             for(uint16_t i = 0; i < sizeof(getTECInfoMsgResp_t); i++)
             {
                 printf("0x%02X ", m_buff[i]);
@@ -2564,10 +2563,6 @@ uint16_t controlProtocol::Make_getTECInfoMsgResp(uint16_t Address, uint8_t* pBuf
 {
     getTECInfoMsgResp_t* msg = reinterpret_cast<getTECInfoMsgResp_t*>(pBuff);
     uint16_t CRC = 0;
-
-    #ifdef __RUNNING_ON_CONTROLLINO__
-    Serial.print("size of getTECInfoMsgResp_t is: "); Serial.println(sizeof(getTECInfoMsgResp_t));
-    #endif
 
     // create the getStatus message in pBuff and CRC16 checksum it
     msg->header.control         = RESPONSE;
