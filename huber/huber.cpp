@@ -929,12 +929,7 @@ bool huber::SetSetPoint(const char* pSetPoint)
     bool        retVal  = false;
     uint8_t     count   = 0;
     float       setTemp;
-    uint16_t    converted;
-
-
-    //
-    // chiller does not need to be started (circulating and pumping) to set the set point
-    //
+    uint16_t    int1, int2;
 
 
     //
@@ -952,9 +947,9 @@ bool huber::SetSetPoint(const char* pSetPoint)
     Buff[count++] = '*';    // Alarms query, don't change current state
 
     // convert pSetPoint to ASCII HEX representation
-    setTemp     = atof(pSetPoint);
-    converted   = (setTemp * (float)100);
-    snprintf(reinterpret_cast<char*>(&Buff[count]), 5, "%X", converted);
+    setTemp = atof(pSetPoint);
+    int1    = setTemp * (float)100; // rid the funky float conversion past 2 decimals
+    snprintf(reinterpret_cast<char*>(&Buff[count]), 5, "%X", int1);
     count += 4;
 
     Buff[count++] = 'x';    // check sum setLengthAndCheckSum to fill in
@@ -970,7 +965,9 @@ bool huber::SetSetPoint(const char* pSetPoint)
         //  TODO : test with real Huber chiller !
         // check the huberData structure, it was updated by the sendGeneralCommand
         // 
-        if( (setTemp == GetSetPointFloat()) )
+        int2    = GetSetPointFloat() * (float)100; // rid the funky float conversion past 2 decimals
+
+        if( (int1 == int2) )
         {
             #ifdef __DEBUG_HUBER2__
             Serial.print(__PRETTY_FUNCTION__);

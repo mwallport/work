@@ -123,22 +123,22 @@ typedef enum _msgID
     setTECTemperatureResp,      // target TEC m_address and temp response
     getTECTemperature,          // target TEC m_address and temp
     getTECTemperatureResp,      // target TEC m_address and temp response
-    setChillerTemperature,      // target TEC m_address and temp
-    setChillerTemperatureResp,  // target TEC m_address and temp response
-    getChillerTemperature,      // target TEC m_address and temp
-    getChillerTemperatureResp,  // target TEC m_address and temp response
-    startChillerMsg,               // start the chiller  ***
-    startChillerMsgResp,           // response ***
-    stopChiller,                // stop the chiller  ***
-    stopChillerResp,            // response ***
-    getChillerInfo,             // get the name of the chiller  ***
-    getChillerInfoResp,         // response ***
-    getTECInfoMsg,                 // get TEC info
-    getTECInfoMsgResp,             // response ***
+    getTECInfoMsg,              // get TEC info
+    getTECInfoMsgResp,          // response ***
     enableTECs,                 // turn on all TECs
     enableTECsResp,             // turn on all TECs response
     disableTECs,                // turn off all TECs
     disableTECsResp,            // turn off all TECs response
+    setChillerTemperature,      // target TEC m_address and temp
+    setChillerTemperatureResp,  // target TEC m_address and temp response
+    getChillerTemperature,      // target TEC m_address and temp
+    getChillerTemperatureResp,  // target TEC m_address and temp response
+    startChillerMsg,            // start the chiller  ***
+    startChillerMsgResp,        // response ***
+    stopChiller,                // stop the chiller  ***
+    stopChillerResp,            // response ***
+    getChillerInfo,             // get the name of the chiller  ***
+    getChillerInfoResp,         // response ***
     startUpCmd,                 // start up
     startUpCmdResp,             // reponse
     shutDownCmd,                // shutdown
@@ -161,7 +161,7 @@ typedef struct _msgHeader
 {
     uint8_t    control;        // '#' or '!' - character
     uint8_t    length;         // total packet length, byte 0 .. n
-    Address_t   address;        // 0 for master, !0 for slave(s) - uint8_t
+    Address_t  address;        // 0 for master, !0 for slave(s) - uint8_t
     uint8_t    seqNum;         // uint16_t
     uint8_t    msgNum;         // uint16_t - this will be the getStatusMsg message
 } msgHeader_t;
@@ -186,10 +186,10 @@ typedef struct _statusReport
 
 typedef struct _getStatusResp
 {
-    msgHeader_t header;
-    statusReport_t status;      // the status
-    CRC         crc;            // 16 bit CRC over the packet
-    EOP         eop;            // end of transmission character/byte
+    msgHeader_t     header;
+    statusReport_t  status;     // the status
+    CRC             crc;        // 16 bit CRC over the packet
+    EOP             eop;        // end of transmission character/byte
 } getStatusResp_t;
 const uint16_t len_getStatusResp_t  = sizeof(getStatusResp_t) - sizeof(CRC) - sizeof(EOP);
 
@@ -226,8 +226,8 @@ const uint16_t len_getHumidityThreshold_t    = sizeof(getHumidityThreshold_t) - 
 typedef struct _getHumidityThresholdResp
 {
     msgHeader_t header;
-    uint16_t    threshold;          // uint16_6 - current humidity threshold - TODO: make this ASCII char?
-    CRC         crc;                // 16 bit CRC over the packet
+    uint16_t    threshold;      // uint16_6 - current humidity threshold - TODO: make this ASCII char?
+    CRC         crc;            // 16 bit CRC over the packet
     EOP         eop;            // end of transmission character/byte
 } getHumidityThresholdResp_t;
 const uint16_t len_getHumidityThresholdResp_t    = sizeof(getHumidityThresholdResp_t) - sizeof(CRC) - sizeof(EOP);
@@ -246,7 +246,7 @@ typedef struct _getHumidityResp
 {
     msgHeader_t header;
     uint8_t     humidity[MAX_HUMIDITY_LENGTH];    // float in 32 bits
-    CRC         crc;        // 16 bit CRC over the packet
+    CRC         crc;            // 16 bit CRC over the packet
     EOP         eop;            // end of transmission character/byte
 } getHumidityResp_t;
 const uint16_t len_getHumidityResp_t    = sizeof(getHumidityResp_t) - sizeof(CRC) - sizeof(EOP);

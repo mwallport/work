@@ -176,4 +176,56 @@ volatile  int virtualPosition = HUMIDITY_THRESHOLD;
 typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
 
 
+//
+// system status - updated by getStats and by set commands from control
+//
+systemState sysStates;
+
+//
+// LCD display
+//
+const int rs = 8, en = 10, d4 = 11, d5 = 12, d6 = 13, d7 = 42, rw=9;
+LiquidCrystal lcd(rs, rw, en, d4, d5, d6, d7);
+
+//
+// temperature himidity sensor
+//
+SHTSensor sht;
+
+//
+// huber chiller communication
+//
+huber chiller(9600);
+
+//
+// meerstetter communication
+//
+meerstetterRS485 ms(9600);
+
+//
+// control PC communication
+// assuming they will be address 0 and this program will be address 1
+//
+controlProtocol cp(1, 0, 9600);  // my address is 1, control address is 0
+
+
+//
+// configure the button
+//
+// The pin number attached to the button.
+const int BUTTON_PIN = 3;
+bool currentButtonOnOff = false;
+volatile bool buttonOnOff = false;
+
+//
+// Using the RTC to prevent getStatus() from failing while the rotary
+// knob is being used.  Testing shows that when the ISR runs for the know,
+// packet bytes of the chiller or TEC protocols disappear/are-dropped/or-something
+// causing protocol failures and bogus 'shutDowns' due to poor communication.
+// The idea is to not do getStatus() if the current time is too close to the last time
+// the knob was used .. (also will be trying to disable interrupts during get status)
+//
+volatile int knobTime;
+
+
 #endif

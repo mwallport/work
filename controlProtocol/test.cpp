@@ -37,7 +37,6 @@ int main(int argc, char** argv)
 
     printf("\n\n");
     sleep(5);
-
     if( (cpUSB.GetTECInfo(1, 2, &deviceType, &hwVersion, &fwVersion, &serialNumber)) ) // works
     {
         printf("++++++++++++++++++++++++GetTECInfo cmd good\n");
@@ -68,7 +67,6 @@ int main(int argc, char** argv)
         printf("-------------------StartUpCmd bad\n");
     printf("\n\n");
     sleep(5);
-*/
 
     if( (cpUSB.GetStatus(destAddress, &humidityAlert, &TECsRunning, &chillerOnLine)) ) // not working
     {
@@ -114,7 +112,7 @@ int main(int argc, char** argv)
 
     sleep(2);
 
-    if( (cpUSB.SetTECTemperature(1, 2, -10.01)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 2, -15.01)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -130,12 +128,14 @@ int main(int argc, char** argv)
     printf("\n\n");
 
     sleep(2);
+*/
 
-    if( (cpUSB.SetChillerTemperature(1, -21.12)) ) // not working
+    if( (cpUSB.SetChillerTemperature(1, -11.10)) ) // not working
         printf("++++++++++++++++++++++success for set chiller temperature\n");
     else
         printf("----------------------fail on set chiller temperature\n");
     printf("\n\n");
+/*
 
     sleep(2);
 
@@ -146,7 +146,6 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(2);
 
-/*
     if( (cpUSB.EnableTECs(1)) )
         printf("+++++++++++++++++++++success on enable TECs\n");
     else
@@ -170,8 +169,8 @@ int main(int argc, char** argv)
 
     sleep(2);
 
-    return(0);
 */
+    return(0);
 
 }
 

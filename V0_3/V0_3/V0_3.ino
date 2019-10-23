@@ -11,127 +11,25 @@
 
 
 
-//
-// system status - updated by getStats and by set commands from control
-//
-systemState sysStates;
-
-//
-// LCD display
-//
-const int rs = 8, en = 10, d4 = 11, d5 = 12, d6 = 13, d7 = 42, rw=9;
-LiquidCrystal lcd(rs, rw, en, d4, d5, d6, d7);
-
-//
-// temperature himidity sensor
-//
-SHTSensor sht;
-
-//
-// huber chiller communication
-//
-huber chiller(9600);
-
-//
-// meerstetter communication
-//
-meerstetterRS485 ms(9600);
-
-//
-// control PC communication
-// assuming they will be address 0 and this program will be address 1
-//
-controlProtocol cp(1, 0, 9600);  // my address is 1, control address is 0
-
-
-//
-// configure the button
-//
-// The pin number attached to the button.
-const int BUTTON_PIN = 3;
-bool currentButtonOnOff = false;
-volatile bool buttonOnOff = false;
-
-//
-// Using the RTC to prevent getStatus() from failing while the rotary
-// knob is being used.  Testing shows that when the ISR runs for the know,
-// packet bytes of the chiller or TEC protocols disappear/are-dropped/or-something
-// causing protocol failures and bogus 'shutDowns' due to poor communication.
-// The idea is to not do getStatus() if the current time is too close to the last time
-// the knob was used .. (also will be trying to disable interrupts during get status)
-//
-volatile int knobTime;
-
 
 void setup()
 {
-    //
-    // Wire.begin() must appear before the Serial.begin(...)
-    // else Serial gets clipped
-    //
-    #if defined __DEBUG_VIA_SERIAL__ || defined __DEBUG2_VIA_SERIAL__
-    Wire.begin();
-    Serial.begin(115200);
-    #else
-    Wire.begin();
-    #endif
 
     //
-    // let the Serial port settle after loading Wire.begin()
+    // start the system components and Serial port if running debug
     //
-    delay(1000);
+    initSystem();
 
 
+    //
+    // TODO: remove this
+    // banner - used to easilyeasily  find system restarts in log file
+    //
     #ifdef __DEBUG_VIA_SERIAL__
     Serial.println(" -----------------------------------------------------------"); Serial.flush();
     Serial.println(" -------------------------> setup() <-----------------------"); Serial.flush();
     Serial.println(" -----------------------------------------------------------"); Serial.flush();
     #endif
-
-
-    //
-    // initialize the system states /stats - these are
-    // used to hold temperatures, humidity, etc. and
-    // used in responses to getStatusCmd from control
-    // and holds the LCD messages
-    //
-    initSysStates(sysStates);
-
-
-    //
-    // initialize the real time clock
-    //
-    startRTC();
-    
-    
-    //
-    // start the humidity sensor
-    //
-    startSHTSensor();
-
-
-    //
-    // start the LCD and paint system initializing
-    //
-    startLCD();
-
-    
-    //
-    // register the ISR for the digital encoder
-    //
-    enableRotaryEncoder();
-    
-
-    //
-    // initialize the button
-    //
-    configureButton();
-
-
-    //
-    // let the Serial port settle after initButton()
-    //
-    delay(1000);
 }
 
 
@@ -161,7 +59,7 @@ void loop()
 // all LCD calls are void, no way to tell if the LCD is up .. 
 bool startLCD()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -182,7 +80,7 @@ bool startSHTSensor()
 {
     bool retVal = false;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -233,7 +131,7 @@ bool startUp()
     bool retVal = true;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -286,10 +184,10 @@ bool startUp()
 //
 void getStatus()
 {
-    static unsigned long    lastGetStatusTime     = 0;
-    unsigned long           currentGetStatusTime  = millis();
-    int                     currTime, RTCdiff;
-    static bool             getChiller  = true;
+    static unsigned long    lastGetStatusTime       = 0;
+    static bool             getChiller              = true;
+    static systemStatus     priorStatus             = setSystemStatus();
+    unsigned long           currentGetStatusTime    = millis();
 
 
     //
@@ -297,7 +195,7 @@ void getStatus()
     //
     if( (GET_STATUS_INTERVAL < (currentGetStatusTime - lastGetStatusTime)) )
     {
-        #ifdef __DEBUG_VIA_SERIAL__
+        #ifdef __DEBUG2_VIA_SERIAL__
         Serial.println("---------------------------------------");
         Serial.println(__PRETTY_FUNCTION__);
         //Serial.print("currentGetStatusTime: "); Serial.println(currentGetStatusTime);
@@ -329,16 +227,17 @@ void getStatus()
         //
         if( (humidityHigh()) )
         {
-            if( (SHUTDOWN != getSystemStatus()) )
+            if( (SHUTDOWN != priorStatus) )
                 shutDownSys();
         }
 
         //
         // set the LCD state for the overall system based on the
         // gathered information and attach/detach knob interrupts as
-        // needed, i.e. shutdown or not
+        // needed, i.e. shutdown or not - save the priorStatus to
+        // handle transition to SHUTDOWN (above)
         //
-        getSystemStatus();
+        priorStatus = setSystemStatus();
     }
 }
 
@@ -351,7 +250,7 @@ bool shutDownSys()
     bool    retVal  = true;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -405,7 +304,7 @@ bool shutDownSys()
 //
 bool startChiller()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -470,7 +369,7 @@ bool startTECs()
     bool    TECsRunning = true;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -527,7 +426,7 @@ bool stopTECs()
     bool    TECsStopped = true;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -574,7 +473,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
     bool retVal = false;
 
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -609,7 +508,7 @@ bool setTECTemp(uint16_t tecAddress, float temp)
 
 bool setChillerSetPoint(char* temp)
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -621,7 +520,7 @@ bool setChillerSetPoint(char* temp)
 
 void handleMsgs()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     Serial.flush();
@@ -764,7 +663,7 @@ void handleMsgs()
 
 void lcd_initializing()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -781,7 +680,7 @@ void lcd_initializing()
 
 void lcd_starting()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -799,7 +698,7 @@ void lcd_starting()
 
 void lcd_ready()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -815,7 +714,7 @@ void lcd_ready()
 
 void lcd_running()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -831,7 +730,7 @@ void lcd_running()
 
 void lcd_shutdown()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -847,7 +746,7 @@ void lcd_shutdown()
 
 void lcd_shuttingDown()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -865,7 +764,7 @@ void lcd_shuttingDown()
 
 void lcd_startFailed()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -881,7 +780,7 @@ void lcd_startFailed()
 
 void lcd_systemFailure()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -899,7 +798,7 @@ void lcd_systemFailure()
 
 void lcd_tecsRunning()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -921,7 +820,7 @@ void lcd_tecsRunning()
 
 void lcd_tecsStopped()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -943,7 +842,7 @@ void lcd_tecsStopped()
 
 void lcd_tecComFailure()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -961,7 +860,7 @@ void lcd_tecComFailure()
 
 void lcd_chillerRunning()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -986,7 +885,7 @@ void lcd_chillerRunning()
 
 void lcd_chillerStopped()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -1011,7 +910,7 @@ void lcd_chillerStopped()
 
 void lcd_chillerComFailure()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -1027,7 +926,7 @@ void lcd_chillerComFailure()
 
 void lcd_humidityAndThreshold()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -1049,7 +948,7 @@ void lcd_humidityAndThreshold()
 
 void lcd_highHumidity()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -1068,7 +967,7 @@ void lcd_highHumidity()
 
 void lcd_sensorFailure()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -1089,7 +988,7 @@ bool getMsgFromControl()
     msgHeader_t*    pMsgHeader;
     bool            retVal  = false;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     Serial.flush();
@@ -1140,7 +1039,7 @@ void handleStartUpCmd()
                 buttonOnOff = true;
                 currentButtonOnOff = buttonOnOff;
             } else
-                getSystemStatus();  // derive the button state
+                setSystemStatus();  // derive the button state
                 
 
             respLength = cp.Make_startUpCmdResp(cp.m_peerAddress, cp.m_buff,
@@ -1215,7 +1114,8 @@ void handleShutDownCmd()
                 buttonOnOff = false;
                 currentButtonOnOff = buttonOnOff;
             } else
-                getSystemStatus();  // derive the button state
+                setSystemStatus();  // derive the button state
+
 
             respLength = cp.Make_shutDownCmdResp(cp.m_peerAddress, cp.m_buff,
                 result, pshutDownCmd->header.seqNum
@@ -2401,7 +2301,7 @@ void initSysStates(systemState& states)
 //
 void manageLCD()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     Serial.flush();
@@ -2446,11 +2346,11 @@ void manageLCD()
         //
         if( (humidityHigh()) )
         {
-            lcdFaces[sensor_HighHumidity]();
-
-        } else if( (offline == sysStates.sensor.online) )
-        {
-            lcdFaces[sensor_Failure]();
+            // high or sensor failure
+            if( (offline == sysStates.sensor.online) )
+                lcdFaces[sensor_Failure]();
+            else
+                lcdFaces[sensor_HighHumidity]();
 
         } else // paint the current LCD screen
         {
@@ -2474,7 +2374,7 @@ void manageLCD()
 bool getHumidityLevel(void)
 {
     bool retVal = true;
-    bool  tryLater = 
+
 
     //
     // the rotary encoder ISR routine interferes with normal processing
@@ -2512,7 +2412,7 @@ bool getHumidityLevel(void)
             // have enough samples, make an average
             sysStates.sensor.humidity /= (float)MAX_HUMIDITY_SAMPLES;
 
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" took an average for humidity: ");
             Serial.print(sysStates.sensor.humidity, 2); Serial.println("%"); Serial.flush();
             #endif
@@ -2735,7 +2635,7 @@ void handleTECStatus(void)
             &sysStates.tec[(Address - 2)].setpoint,
             &sysStates.tec[(Address - 2)].temperature)) )
         {
-            #ifdef __DEBUG2_VIA_SERIAL__
+            #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR:TEC ");
             Serial.print(Address, DEC); Serial.println(" unable to get temps");
             Serial.flush();
@@ -2755,7 +2655,7 @@ void handleTECStatus(void)
 
         if( !(ms.TECRunning(Address)) )
         {
-            #ifdef __DEBUG_VIA_SERIAL__
+            #ifdef __DEBUG2_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: TEC ");
             Serial.print(Address); Serial.println(" is not running");
             Serial.flush();
@@ -2823,7 +2723,7 @@ bool getTECInfo(uint8_t tec_address, uint32_t* deviceType, uint32_t* hwVersion,
 }
 
 
-systemStatus getSystemStatus()
+systemStatus setSystemStatus()
 {
     systemStatus    retVal      = RUNNING;
     bool            TECsOnline  = true;
@@ -2898,7 +2798,7 @@ systemStatus getSystemStatus()
 
 void startRTC()
 {
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
@@ -2972,7 +2872,7 @@ bool rotaryUsedRecently()
     if( (10 > (currTime - knobTime)) )
         retVal = true;
 
-    #ifdef __DEBUG_VIA_SERIAL__
+    #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.print(__PRETTY_FUNCTION__);Serial.print(" returning "); Serial.println(retVal);
     #endif
@@ -2983,6 +2883,9 @@ bool rotaryUsedRecently()
 
 bool humidityHigh()
 {
+    bool retVal = false;
+
+
     if( ((sysStates.sensor.humidity > sysStates.sensor.threshold) 
         || (offline == sysStates.sensor.online)) )
     {
@@ -2991,7 +2894,64 @@ bool humidityHigh()
         Serial.println(" WARNING: humidity too high or sensor failure");
         #endif
 
-        return(true);
-    } else
-        return(false);
+        retVal = true;
+    }
+
+    return(retVal);
+}
+
+
+void initSystem()
+{
+    //
+    // Wire.begin() must appear before the Serial.begin(...)
+    // else Serial gets clipped
+    //
+    Wire.begin();
+
+    //
+    // start the Serial port if running debug
+    //
+    #if defined __DEBUG_VIA_SERIAL__ || defined __DEBUG2_VIA_SERIAL__
+    Serial.begin(115200);
+    delay(1000);    // let the Serial port settle after loading Wire.begin()
+    #endif
+
+    //
+    // initialize the system states /stats - these are
+    // used to hold temperatures, humidity, etc. and
+    // used in responses to getStatusCmd from control
+    // and holds the LCD messages
+    //
+    initSysStates(sysStates);
+
+    //
+    // initialize the real time clock
+    //
+    startRTC();
+
+    //
+    // start the humidity sensor
+    //
+    startSHTSensor();
+
+    //
+    // start the LCD and paint system initializing
+    //
+    startLCD();
+
+    //
+    // register the ISR for the digital encoder
+    //
+    enableRotaryEncoder();
+
+    //
+    // initialize the button
+    //
+    configureButton();
+
+    //
+    // let the Serial port settle after initButton()
+    //
+    delay(1000);
 }
