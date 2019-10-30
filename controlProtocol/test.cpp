@@ -37,6 +37,16 @@ int main(int argc, char** argv)
 
     printf("\n\n");
     sleep(5);
+*/
+    if( (cpUSB.GetTECInfo(1, 1, &deviceType, &hwVersion, &fwVersion, &serialNumber)) ) // works
+    {
+        printf("++++++++++++++++++++++++GetTECInfo cmd good\n");
+        printf("deviceType 0x%04X, hwVersion 0x%04X, fwVersion 0x%04X, serialNumber 0x%04X", 
+            deviceType, hwVersion, fwVersion, serialNumber);
+    } else
+        printf("-------------------GetTECInfo bad\n");
+    printf("\n\n");
+
     if( (cpUSB.GetTECInfo(1, 2, &deviceType, &hwVersion, &fwVersion, &serialNumber)) ) // works
     {
         printf("++++++++++++++++++++++++GetTECInfo cmd good\n");
@@ -45,6 +55,16 @@ int main(int argc, char** argv)
     } else
         printf("-------------------GetTECInfo bad\n");
     printf("\n\n");
+
+    if( (cpUSB.GetTECInfo(1, 3, &deviceType, &hwVersion, &fwVersion, &serialNumber)) ) // works
+    {
+        printf("++++++++++++++++++++++++GetTECInfo cmd good\n");
+        printf("deviceType 0x%04X, hwVersion 0x%04X, fwVersion 0x%04X, serialNumber 0x%04X", 
+            deviceType, hwVersion, fwVersion, serialNumber);
+    } else
+        printf("-------------------GetTECInfo bad\n");
+    printf("\n\n");
+/*
     sleep(5);
 
     if( (cpUSB.StartChiller(1)) ) // works
@@ -112,7 +132,22 @@ int main(int argc, char** argv)
 
     sleep(2);
 
-    if( (cpUSB.SetTECTemperature(1, 2, -15.01)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 1, -1.11)) )   // working
+        printf("+++++++++++++++++++success on set TEC temperature\n");
+    else
+        printf("-------------------fail on set TEC temperature\n");
+    printf("\n\n");
+
+    sleep(2);
+
+
+    if( (cpUSB.GetTECTemperature(1, 1, &temperature)) ) // showing number that is too big
+        printf("++++++++++++++++++++++got TEC temperature %f\n", temperature);// works if you program in non-zero
+    else
+        printf("----------------------failed to get TEC temperature\n");
+    printf("\n\n");
+
+    if( (cpUSB.SetTECTemperature(1, 2, -2.22)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -127,15 +162,28 @@ int main(int argc, char** argv)
         printf("----------------------failed to get TEC temperature\n");
     printf("\n\n");
 
+    if( (cpUSB.SetTECTemperature(1, 3, -3.33)) )   // working
+        printf("+++++++++++++++++++success on set TEC temperature\n");
+    else
+        printf("-------------------fail on set TEC temperature\n");
+    printf("\n\n");
+
     sleep(2);
-*/
+
+
+    if( (cpUSB.GetTECTemperature(1, 3, &temperature)) ) // showing number that is too big
+        printf("++++++++++++++++++++++got TEC temperature %f\n", temperature);// works if you program in non-zero
+    else
+        printf("----------------------failed to get TEC temperature\n");
+    printf("\n\n");
+
+    sleep(2);
 
     if( (cpUSB.SetChillerTemperature(1, -11.10)) ) // not working
         printf("++++++++++++++++++++++success for set chiller temperature\n");
     else
         printf("----------------------fail on set chiller temperature\n");
     printf("\n\n");
-/*
 
     sleep(2);
 

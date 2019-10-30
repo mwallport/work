@@ -23,8 +23,8 @@
 #define PIN_HW_ENABLE_n         8
 #define SWITCH_PIN              9
 #define MAX_BUFF_LENGHT         10
-#define MAX_TEC_ADDRESS         2
-#define MAX_TECs                (MAX_TEC_ADDRESS - 1)
+#define MAX_TEC_ADDRESS         3
+#define MIN_TEC_ADDRESS         1
 #define MAX_SHUTDOWN_ATTEMPTS   1
 #define SYSTEM_NRML_OFFSET      0   // 2 msgs, good and bad
 #define SYSTEM_FAIL_OFFSET      1   // 2 msgs, good and bad

@@ -278,7 +278,7 @@ bool shutDownSys()
     //
     // turn off the TECs - not checking return value here as we are dying anyway ??
     //
-    for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
+    for(uint8_t Address = MIN_TEC_ADDRESS; (Address <= MAX_TEC_ADDRESS); Address++)
     {
         if( !(ms.StopTEC(Address)) )
             retVal  = false;
@@ -383,10 +383,10 @@ bool startTECs()
     sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Stopped;
     sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = no_Status;
 
-    for(uint8_t Address = 2; Address <= MAX_TEC_ADDRESS; Address++)
+    for(uint8_t Address = MIN_TEC_ADDRESS; Address <= MAX_TEC_ADDRESS; Address++)
     {
-        sysStates.tec[(Address - 2)].online   = offline;
-        sysStates.tec[(Address - 2)].state    = stopped;    // we don't know
+        sysStates.tec[(Address - MIN_TEC_ADDRESS)].online   = offline;
+        sysStates.tec[(Address - MIN_TEC_ADDRESS)].state    = stopped;    // we don't know
 
         // set to 2 to enable Live On/Off - otherwise its static on if we send 1 (i.e. always on) ??
         // try the Live On/Off command to enable the TECs .. ?
@@ -402,8 +402,8 @@ bool startTECs()
             retVal  = false;
         } else
         {
-            sysStates.tec[(Address - 2)].online   = online;
-            sysStates.tec[(Address - 2)].state    = running;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].online   = online;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state    = running;
         }
     }
 
@@ -438,7 +438,7 @@ bool stopTECs()
     //
     sysStates.lcd.lcdFacesIndex[TEC_NRML_OFFSET]   = tec_Stopped;
     sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]   = no_Status;
-    for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
+    for(uint8_t Address = MIN_TEC_ADDRESS; (Address <= MAX_TEC_ADDRESS); Address++)
     {
         if( !(ms.StopTEC(Address)) )
         {
@@ -454,13 +454,13 @@ bool stopTECs()
             // update the LCD state at least
             //
             sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]    = tec_ComFailure;
-            sysStates.tec[(Address - 2)].online             = offline;
-            sysStates.tec[(Address - 2)].state              = stopped;  // we don't know
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].online             = offline;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state              = stopped;  // we don't know
 
         } else
         {
-            sysStates.tec[(Address - 2)].online   = online;
-            sysStates.tec[(Address - 2)].state    = stopped;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].online   = online;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state    = stopped;
         }
     }
 
@@ -1480,9 +1480,13 @@ void handleSetTECTemperature()
                     result  = 1;
 
                     //
-                    // update the TEC's set point temperature
+                    // TODO: DO NOT update the TEC's set point temperature ! 
+                    // rather, getStatus() queries the Meerstetter device
                     //
-                    sysStates.tec[(tecAddress - 2)].setpoint = setPoint;
+                    // TODO: document this behavior, update may not show on LCD
+                    // for 'a few seconds' until getStatus() queries the device
+                    //
+                    //sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].setpoint = setPoint;
 
                 } else
                 {
@@ -1601,7 +1605,7 @@ void handleGetTECTemperature()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                tecAddress, sysStates.tec[(tecAddress - 2)].setpoint, pgetTECTemperature->header.seqNum
+                tecAddress, sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].setpoint, pgetTECTemperature->header.seqNum
             );
 
             //
@@ -1617,7 +1621,7 @@ void handleGetTECTemperature()
             } else
             {
                 Serial.print(__PRETTY_FUNCTION__); Serial.print(" sent response: ");
-                Serial.println(sysStates.tec[(tecAddress - 2)].temperature, 2);
+                Serial.println(sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].temperature, 2);
                 Serial.flush();
             #endif
             }
@@ -2266,12 +2270,12 @@ void initSysStates(systemState& states)
         states.sensor.sampleData.sample[i] = 0.0;
 
     // tecs starts offline until discovered to be online via getStatus()
-    for(int i = 2; i <= MAX_TEC_ADDRESS; i++)
+    for(int i = MIN_TEC_ADDRESS; i <= MAX_TEC_ADDRESS; i++)
     {
-        states.tec[(i - 2)].online          = offline;
-        states.tec[(i - 2)].state           = stopped;
-        states.tec[(i - 2)].setpoint        = 0;
-        states.tec[(i - 2)].temperature     = 0;
+        states.tec[(i - MIN_TEC_ADDRESS)].online          = offline;
+        states.tec[(i - MIN_TEC_ADDRESS)].state           = stopped;
+        states.tec[(i - MIN_TEC_ADDRESS)].setpoint        = 0;
+        states.tec[(i - MIN_TEC_ADDRESS)].temperature     = 0;
     }
 
     // lcd - initialize all messages
@@ -2469,9 +2473,9 @@ bool TECsRunning()
     bool retVal = true;
 
 
-    for(int i = 2; i <= MAX_TEC_ADDRESS; i++)
+    for(int i = MIN_TEC_ADDRESS; i <= MAX_TEC_ADDRESS; i++)
     {
-        if( (running != sysStates.tec[(i - 2)].state) )
+        if( (running != sysStates.tec[(i - MIN_TEC_ADDRESS)].state) )
             retVal = false;
     }
 
@@ -2623,17 +2627,17 @@ void handleTECStatus(void)
     // assume they are running, if one if found not running, mark the group
     // as not running
     //
-    for(uint8_t Address = 2; (Address <= MAX_TEC_ADDRESS); Address++)
+    for(uint8_t Address = MIN_TEC_ADDRESS; (Address <= MAX_TEC_ADDRESS); Address++)
     {
-        sysStates.tec[(Address - 2)].state          = running;
-        sysStates.tec[(Address - 2)].online         = online;
+        sysStates.tec[(Address - MIN_TEC_ADDRESS)].state          = running;
+        sysStates.tec[(Address - MIN_TEC_ADDRESS)].online         = online;
 
         //
         // always fetch the TEC's set point and object temperatures
         //
         if( !(ms.GetTECTemp(Address,
-            &sysStates.tec[(Address - 2)].setpoint,
-            &sysStates.tec[(Address - 2)].temperature)) )
+            &sysStates.tec[(Address - MIN_TEC_ADDRESS)].setpoint,
+            &sysStates.tec[(Address - MIN_TEC_ADDRESS)].temperature)) )
         {
             #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR:TEC ");
@@ -2641,14 +2645,14 @@ void handleTECStatus(void)
             Serial.flush();
             #endif
 
-            sysStates.tec[(Address - 2)].online   = offline;
-            sysStates.tec[(Address - 2)].state    = stopped;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].online   = offline;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state    = stopped;
             #ifdef __DEBUG2_VIA_SERIAL__
         } else
         {
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" found ");
-            Serial.print(sysStates.tec[(Address - 2)].setpoint, 2);
-            Serial.print(" : "); Serial.println(sysStates.tec[(Address - 2)].temperature, 2);
+            Serial.print(sysStates.tec[(Address - MIN_TEC_ADDRESS)].setpoint, 2);
+            Serial.print(" : "); Serial.println(sysStates.tec[(Address - MIN_TEC_ADDRESS)].temperature, 2);
             Serial.flush();
             #endif
         }
@@ -2667,7 +2671,7 @@ void handleTECStatus(void)
             TECsRunning = false;
 
             // update sysStates
-            sysStates.tec[(Address - 2)].state = stopped;
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state = stopped;
 
             //
             // check if we can still communicate with TECs
@@ -2683,7 +2687,7 @@ void handleTECStatus(void)
                 TECsOnline  = false;
 
                 // update the sysStates
-                sysStates.tec[(Address - 2)].online = offline;
+                sysStates.tec[(Address - MIN_TEC_ADDRESS)].online = offline;
             }
         }
     }
@@ -2731,12 +2735,12 @@ systemStatus setSystemStatus()
     
 
     // get the TECs status'
-    for(int i = 2; i <= MAX_TEC_ADDRESS; i++)
+    for(int i = MIN_TEC_ADDRESS; i <= MAX_TEC_ADDRESS; i++)
     {
-        if( (offline == sysStates.tec[(i - 2)].online) )
+        if( (offline == sysStates.tec[(i - MIN_TEC_ADDRESS)].online) )
             TECsOnline = false;
 
-        if( (stopped == sysStates.tec[(i - 2)].state) )
+        if( (stopped == sysStates.tec[(i - MIN_TEC_ADDRESS)].state) )
             TECsRunning = false;
     }
 
