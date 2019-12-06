@@ -8,8 +8,8 @@
 //#define __DEBUG_CONTROL_PKT_RX__
 
 // platform
-#define __USING_LINUX_USB__
-//#define __RUNNING_ON_CONTROLLINO__
+//#define __USING_LINUX_USB__
+#define __RUNNING_ON_CONTROLLINO__
 
 // common
 #include <stdint.h>
@@ -288,6 +288,7 @@ typedef struct _getTECTemperatureResp
 {
     msgHeader_t header;
     uint16_t    tec_address;    // uint16_6 - TEC address
+    uint16_t    result;         // 0 - fail ; 1 - success
     uint8_t     temperature[MAX_TEC_TEMP_LENGH];    // float in 32 bits
     CRC         crc;            // 16 bit CRC over the packet
     EOP         eop;            // end of transmission character/byte
@@ -536,7 +537,7 @@ class controlProtocol
     bool    SetHumidityThreshold(uint16_t, uint16_t);
     bool    GetHumidityThreshold(uint16_t, uint16_t*);
     bool    SetTECTemperature(uint16_t, uint16_t, float);
-    bool    GetTECTemperature(uint16_t, uint16_t, float*);
+    bool    GetTECTemperature(uint16_t, uint16_t, uint16_t*, float*);
     bool    StartChiller(uint16_t);
     bool    StopChiller(uint16_t);
     bool    GetChillerInfo(uint16_t, char*, uint8_t);
@@ -604,8 +605,8 @@ class controlProtocol
     void        Parse_setTECTemperatureResp(uint8_t*, uint16_t*, uint16_t*);
 
     uint16_t    Make_getTECTemperature(uint16_t, uint8_t*, uint16_t);
-    uint16_t    Make_getTECTemperatureResp(uint16_t, uint8_t*, uint16_t, float, uint16_t);
-    void        Parse_getTECTemperatureResp(uint8_t*, float*, uint16_t*);
+    uint16_t    Make_getTECTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
+    void        Parse_getTECTemperatureResp(uint8_t*, uint16_t*, float*, uint16_t*);
 
     uint16_t    Make_getTECInfoMsg(uint16_t, uint8_t*, uint16_t);
     uint16_t    Make_getTECInfoMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint32_t, 
