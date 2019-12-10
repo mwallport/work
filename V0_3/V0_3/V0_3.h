@@ -18,8 +18,9 @@
 //
 // constants - using #define - have limited space on Arduino
 //
-#define GET_STATUS_INTERVAL     20000
-#define GET_HUMIDITY_INTERVAL   5000
+#define GET_STATUS_INTERVAL     10000
+#define GET_HUMIDITY_INTERVAL   2500
+#define BUTTON_PERIOD           5000
 #define HUMIDITY_THRESHOLD      80
 #define HUMIDITY_BUFFER         10
 #define PIN_HW_ENABLE_n         8
@@ -100,11 +101,11 @@ lcdFunc lcdFaces[MAX_LCD_FUNC] =
     lcd_shutdown,       // shutdown has been done either implicitely or explicitely
     lcd_startFailed,    // not all devices present upon startup
     lcd_systemFailure,  // some run-time failure - check tec, chiller, or humidity status
-    0, //lcd_tecsStopped,    // stopped and 3 set points 
-    0, //lcd_tecsRunning,    // running and 3 set points
+    lcd_tecsStopped,    // stopped and 3 set points 
+    lcd_tecsRunning,    // running and 3 set points
     lcd_tecComFailure,  // can't communicate with one of the TECs asterisks and which TEC
-    0, //lcd_chillerRunning, // running - pump is on, etc. and temps
-    0, //lcd_chillerStopped, // not running - pump is off and temps
+    lcd_chillerRunning, // running - pump is on, etc. and temps
+    lcd_chillerStopped, // not running - pump is off and temps
     lcd_chillerComFailure,  // can't communicate with the chiller
     lcd_humidityAndThreshold, // normal humidity
     lcd_highHumidity,   // high humidity
@@ -116,6 +117,11 @@ lcdFunc lcdFaces[MAX_LCD_FUNC] =
 // running status for components - updated by getStatus and set commands
 //
 typedef enum { offline, online, running, stopped, shutdown } runningStates;
+
+//
+// system status
+//
+typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
 
 typedef struct _chillerState
 {
@@ -161,6 +167,7 @@ typedef struct _systemState
     humidityState   sensor;
     tecState        tec[MAX_TEC_ADDRESS];
     LCDState        lcd;
+    systemStatus    sysStatus;
 } systemState;
 
 
@@ -173,9 +180,6 @@ const int pinA            = 2;  // 2 is PE4  -  Digital 0
 const int pinSW           = 3;  // 3 is PE5  -  Digital 1
 int       lastCount       = HUMIDITY_THRESHOLD;
 volatile  int virtualPosition = HUMIDITY_THRESHOLD;
-
-
-typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
 
 
 //

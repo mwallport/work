@@ -3045,8 +3045,7 @@ uint16_t controlProtocol::Make_getChillerInfo(uint16_t Address, uint8_t* pBuff)
 }
 
 
-uint16_t controlProtocol::Make_getChillerInfoResp(uint16_t Address, uint8_t* pBuff, uint16_t result, uint8_t* info,
-            uint8_t length, uint16_t SeqNum)
+uint16_t controlProtocol::Make_getChillerInfoResp(uint16_t Address, uint8_t* pBuff, uint16_t result, uint8_t* info, uint8_t length, uint16_t SeqNum)
 {
     getChillerInfoResp_t* msg = reinterpret_cast<getChillerInfoResp_t*>(pBuff);
     uint16_t CRC = 0;

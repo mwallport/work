@@ -202,9 +202,8 @@ void getStatus(void)
 {
     static unsigned long    lastGetStatusTime       = 0;
     static unsigned long    lastGetHumidityTime     = 0;
-    static bool             getChiller              = true;
-    static systemStatus     priorStatus             = setSystemStatus();
     unsigned long           currentGetStatusTime    = millis();
+    systemStatus            currentStatus;
 
 
     //
@@ -218,17 +217,8 @@ void getStatus(void)
         #endif
         
         lastGetStatusTime = currentGetStatusTime;
-
-        // TODO: flip flop between chiller and TECs .. ?
-        if( (getChiller) )
-        {
-          handleChillerStatus();
-          getChiller = false;
-        } else
-        {
-          handleTECStatus();
-          getChiller = true;
-        }
+        handleChillerStatus();
+        handleTECStatus();
     }
 
 
@@ -252,8 +242,20 @@ void getStatus(void)
         //
         if( (humidityHigh()) )
         {
-            if( (SHUTDOWN != priorStatus) )
+            if( (RUNNING == sysStates.sysStatus) || (READY == sysStates.sysStatus) )
+            {
                 shutDownSys();
+                sysStates.sysStatus = SHUTDOWN;
+
+                // and disable the button ISR, the uC queues up the
+                // interrupts, so if button is presssed while system is
+                // shutdown due to high humidity, that button press could
+                // cause the system to start up when the humidity failure clears
+                disableButtonISR();
+            }
+        } else
+        {
+            enableButtonISR();
         }
     }
 
@@ -263,7 +265,7 @@ void getStatus(void)
     // needed, i.e. shutdown or not - save the priorStatus to
     // handle transition to SHUTDOWN (above)
     //
-    priorStatus = setSystemStatus();
+    setSystemStatus();
 }
 
 
@@ -546,141 +548,143 @@ void handleMsgs(void)
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
-    Serial.flush();
     #endif
 
 
     if( (currentButtonOnOff != buttonOnOff) )
     {
-        currentButtonOnOff = buttonOnOff;
-        
-        #ifdef __DEBUG_VIA_SERIAL__
-        Serial.print("button press happening switching ");
-        if( (true == currentButtonOnOff) ) Serial.println("on"); else Serial.println("off");
-        Serial.flush();
-        #endif
-
-        if( (true == currentButtonOnOff) )
-            startUp();
-        else
-            shutDownSys();
-    }
+        if( (!humidityHigh()) )
+        {
+            currentButtonOnOff = buttonOnOff;
+            
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print("button press happened, switching ");
+            if( (true == currentButtonOnOff) ) Serial.println("on"); else Serial.println("off");
+            Serial.flush();
+            #endif
     
- 
-    //
-    // check for message from control PC
-    //
-    if( (getMsgFromControl()) )
+            if( (true == currentButtonOnOff) )
+                startUp();
+            else
+                shutDownSys();
+        }
+    } else
     {
         //
-        // cp.m_buff has the message just received, process that message
+        // check for message from control PC
         //
-        switch( (cp.getMsgId()) )
+        if( (getMsgFromControl()) )
         {
-            case startUpCmd:                // start the chiller, TECs, and sensor
+            //
+            // cp.m_buff has the message just received, process that message
+            //
+            switch( (cp.getMsgId()) )
             {
-                handleStartUpCmd();
-                break;
+                case startUpCmd:                // start the chiller, TECs, and sensor
+                {
+                    handleStartUpCmd();
+                    break;
+                }
+    
+                case shutDownCmd:               // shutdown the chiller, TECs, and sensor
+                {
+                    handleShutDownCmd();
+                    break;
+                }
+    
+                case getStatusCmd:               // fetch the status of chiller, all TECs, and humidity sensor
+                {
+                    handleGetStatusCmd();
+                    break;
+                };
+    
+                case setHumidityThreshold:       // get the humidity threshold
+                {
+                    handleSetHumidityThreshold();
+                    break;
+                };
+    
+                case getHumidityThreshold:       // set the humidity threshold
+                {
+                    handleGetHumidityThreshold();
+                    break;
+                };
+    
+                case getHumidity:                // get current humidity and temperature
+                {
+                    handleGetHumidity();
+                    break;
+                };
+    
+                case setTECTemperature:          // target TEC m_address and temp
+                {
+                    handleSetTECTemperature();
+                    break;
+                };
+    
+                case getTECTemperature:          // target TEC m_address and temp
+                {
+                    handleGetTECTemperature();
+                    break;
+                };
+    
+                case startChillerMsg:
+                {
+                    handleStartChillerMsg();
+                    break;
+                };
+    
+                case stopChiller:
+                {
+                    handleStopChiller();
+                    break;
+                };
+    
+                case getChillerInfo:
+                {
+                    handleGetChillerInfo();
+                    break;
+                };
+    
+                case setChillerTemperature:      // target TEC m_address and temp
+                {
+                    handleSetChillerTemperature();
+                    break;
+                };
+    
+                case getChillerTemperature:      // target TEC m_address and temp
+                {
+                    handleGetChillerTemperature();
+                    break;
+                };
+    
+                case getTECInfoMsg:
+                {
+                    handlGetTECInfo();
+                    break;
+                };
+    
+                case enableTECs:                 // turn on all TECs
+                {
+                    handleEnableTECs();
+                    break;
+                };
+    
+                case disableTECs:                // turn off all TECs
+                {
+                    handleDisableTECs();
+                    break;
+                };
+    
+                default:
+                {
+                    // send NACK
+                    sendNACK();
+                    break;
+                }
             }
-
-            case shutDownCmd:               // shutdown the chiller, TECs, and sensor
-            {
-                handleShutDownCmd();
-                break;
-            }
-
-            case getStatusCmd:               // fetch the status of chiller, all TECs, and humidity sensor
-            {
-                handleGetStatusCmd();
-                break;
-            };
-
-            case setHumidityThreshold:       // get the humidity threshold
-            {
-                handleSetHumidityThreshold();
-                break;
-            };
-
-            case getHumidityThreshold:       // set the humidity threshold
-            {
-                handleGetHumidityThreshold();
-                break;
-            };
-
-            case getHumidity:                // get current humidity and temperature
-            {
-                handleGetHumidity();
-                break;
-            };
-
-            case setTECTemperature:          // target TEC m_address and temp
-            {
-                handleSetTECTemperature();
-                break;
-            };
-
-            case getTECTemperature:          // target TEC m_address and temp
-            {
-                handleGetTECTemperature();
-                break;
-            };
-
-            case startChillerMsg:
-            {
-                handleStartChillerMsg();
-                break;
-            };
-
-            case stopChiller:
-            {
-                handleStopChiller();
-                break;
-            };
-
-            case getChillerInfo:
-            {
-                handleGetChillerInfo();
-                break;
-            };
-
-            case setChillerTemperature:      // target TEC m_address and temp
-            {
-                handleSetChillerTemperature();
-                break;
-            };
-
-            case getChillerTemperature:      // target TEC m_address and temp
-            {
-                handleGetChillerTemperature();
-                break;
-            };
-
-            case getTECInfoMsg:
-            {
-                handlGetTECInfo();
-                break;
-            };
-
-            case enableTECs:                 // turn on all TECs
-            {
-                handleEnableTECs();
-                break;
-            };
-
-            case disableTECs:                // turn off all TECs
-            {
-                handleDisableTECs();
-                break;
-            };
-
-            default:
-            {
-                // send NACK
-                sendNACK();
-                break;
-            }
-        }
-    } // else no message from control
+        } // else no message from control
+    }
 }
     
 
@@ -1057,8 +1061,8 @@ void handleStartUpCmd(void)
                 //
                 // adjust the button
                 //
-                buttonOnOff = true;
-                currentButtonOnOff = buttonOnOff;
+                buttonOnOff         = true;
+                currentButtonOnOff  = buttonOnOff;
             } else
                 setSystemStatus();  // derive the button state
                 
@@ -1132,8 +1136,8 @@ void handleShutDownCmd(void)
                 //
                 // adjust the button
                 //
-                buttonOnOff = false;
-                currentButtonOnOff = buttonOnOff;
+                buttonOnOff         = false;
+                currentButtonOnOff  = buttonOnOff;
             } else
                 setSystemStatus();  // derive the button state
 
@@ -2312,6 +2316,7 @@ void initSysStates(systemState& states)
     sysStates.lcd.lcdFacesIndex[HUMIDITY_NRML_OFFSET]  = sensor_humidityAndThreshold;
 
     sysStates.lcd.index = 0;
+    sysStates.sysStatus = SHUTDOWN;
 }
 
 
@@ -2332,6 +2337,9 @@ void manageLCD(void)
     //   
     if( (MAX_MSG_DISPLAY_TIME <= (millis() - sysStates.lcd.prior_millis)) )
     {
+        // set up the LCD's number of columns and rows:
+        lcd.begin(16, 2); lcd.noDisplay(); lcd.clear(); lcd.home();
+        
         //
         // update the LCD with the next message, if the next message
         // had been removed, advance to the next message
@@ -2500,14 +2508,6 @@ void enableRotaryEncoder(void)
     pinMode(pinB, INPUT);
     digitalWrite(pinB, HIGH);
 
-    // cannot use LOW for the interrupt signal, using LOW allows the encoder
-    // to hold the whole Controllino hostage if the encoder is held 
-    // between 'slots', i.e. if you carefully hold the encoder in a middle
-    // postion, not in a notch, the signal to the controllino will be high 
-    // (or low) continuously, im guessing causing the ISR routine to be called
-    // repeatedly so fast that nothing else runs.
-    // But !  If we use CHANGE, HIGH, RISING, FALLING here, the aforementioned
-    // problem does not happen but the performance of the knob turn is lessened
     attachInterrupt(digitalPinToInterrupt(pinA), digitalEncoderISR, LOW);
 
     virtualPosition = sysStates.sensor.threshold;
@@ -2557,10 +2557,21 @@ void digitalEncoderISR(void)
 
 void handleChillerStatus(void)
 {
+    bool  retVal  = false;
+
+    
     //
     // get all chiller information
     //
-    if( !(chiller.GetAllChillerInfo()) )
+    if( (offline == sysStates.chiller.online) )
+    {
+        retVal = chiller.GetAllChillerInfo();
+    } else
+    {
+        retVal  = chiller.getChillerStatus();
+    }
+    
+    if( (false == retVal) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.print(__PRETTY_FUNCTION__);
@@ -2593,6 +2604,7 @@ void handleChillerStatus(void)
           sysStates.chiller.state = running;
           sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]    = chiller_Running;
         }
+
         sysStates.chiller.temperature                       = chiller.GetInternalTempFloat();
         sysStates.chiller.setpoint                          = chiller.GetSetPointFloat();
         sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]    = no_Status;
@@ -2742,32 +2754,35 @@ systemStatus setSystemStatus(void)
     // the other 'bad' status for the other components shoudl already be
     // updated
     //
-    if( (offline == sysStates.sensor.online ||    // at least one is offline
+    if( humidityHigh() || (offline == sysStates.sensor.online ||    // at least one is offline
          offline == sysStates.chiller.online ||
          false   == TECsOnline) )
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
         retVal  = SHUTDOWN;
 
-        //
-        // adjust the button
-        //
-        buttonOnOff = false;
-        currentButtonOnOff = buttonOnOff;
-
-        //
-        // adjust the button LED
-        //
-        digitalWrite(BUTTON_LED, LOW);
-
-        //
-        // adjust the FAULT/NO-FAULT LEDs
-        //
-        digitalWrite(FAULT_LED, HIGH);
-        digitalWrite(NO_FAULT_LED, LOW);
-
-        // enable the humidity threshold knob
-        enableRotaryEncoder();
+        if( (SHUTDOWN != sysStates.sysStatus) )
+        {
+            //
+            // adjust the button
+            //
+            buttonOnOff         = false;
+            currentButtonOnOff  = buttonOnOff;
+    
+            //
+            // adjust the button LED
+            //
+            digitalWrite(BUTTON_LED, LOW);
+    
+            //
+            // adjust the FAULT/NO-FAULT LEDs
+            //
+            digitalWrite(FAULT_LED, HIGH);
+            digitalWrite(NO_FAULT_LED, LOW);
+    
+            // enable the humidity threshold knob
+            enableRotaryEncoder();
+        }
         
     } else if( ((online == sysStates.sensor.online &&   // everything is on-line
                  online == sysStates.chiller.online &&  // and all are not running
@@ -2777,61 +2792,65 @@ systemStatus setSystemStatus(void)
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Ready;
         retVal  = READY;
         
-        //
-        // adjust the button
-        //
-        buttonOnOff = false;
-        currentButtonOnOff = buttonOnOff;
-
-        //
-        // adjust the button LED
-        //
-        digitalWrite(BUTTON_LED, LOW);
-
-        //
-        // adjust the FAULT/NO-FAULT LEDs
-        //
-        digitalWrite(FAULT_LED, LOW);
-        digitalWrite(NO_FAULT_LED, HIGH);
-
-        // enable the humidity threshold knob
-        enableRotaryEncoder();
-
+        if( (READY != sysStates.sysStatus) )
+        {
+            //
+            // adjust the button
+            //
+            buttonOnOff         = false;
+            currentButtonOnOff  = buttonOnOff;
+    
+            //
+            // adjust the button LED
+            //
+            digitalWrite(BUTTON_LED, LOW);
+    
+            //
+            // adjust the FAULT/NO-FAULT LEDs
+            //
+            digitalWrite(FAULT_LED, LOW);
+            digitalWrite(NO_FAULT_LED, HIGH);
+    
+            // enable the humidity threshold knob
+            enableRotaryEncoder();
+        }
     } else
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Running;
         retVal  = RUNNING;
 
-        //
-        // adjust the button
-        //
-        buttonOnOff = true;
-        currentButtonOnOff = buttonOnOff;
-
-        //
-        // adjust the button LED
-        //
-        digitalWrite(BUTTON_LED, HIGH);
-
-        //
-        // adjust the FAULT/NO-FAULT LEDs
-        //
-        digitalWrite(FAULT_LED, LOW);
-        digitalWrite(NO_FAULT_LED, HIGH);
-
-        // disable the humidity threshold knob
-        disableRotaryEncoder();
+        if( (RUNNING != sysStates.sysStatus) )
+        {
+            //
+            // adjust the button
+            //
+            buttonOnOff         = true;
+            currentButtonOnOff  = buttonOnOff;
+    
+            //
+            // adjust the button LED
+            //
+            digitalWrite(BUTTON_LED, HIGH);
+    
+            //
+            // adjust the FAULT/NO-FAULT LEDs
+            //
+            digitalWrite(FAULT_LED, LOW);
+            digitalWrite(NO_FAULT_LED, HIGH);
+    
+            // disable the humidity threshold knob
+            disableRotaryEncoder();
+        }
     }
 
+    sysStates.sysStatus = retVal;
     return(retVal);
 }
 
 
 void configureButton(void)
 {
-    pinMode(BUTTON_PIN, INPUT);
-    digitalWrite(BUTTON_PIN, HIGH);
-    attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);       // TODO: INPUT_PULLUP or just INPUT
 
     // status LED - start as off
     pinMode(BUTTON_LED, OUTPUT);
@@ -2848,15 +2867,35 @@ void configureFaultNoFault(void)
 }
 
 
+void enableButtonISR(void)
+{
+    if( ! (humidityHigh()) )
+        attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
+}
+
+
+void disableButtonISR(void)
+{
+    detachInterrupt(digitalPinToInterrupt(BUTTON_PIN));
+}
+
+
 void buttonISR(void)
 {
-    static unsigned long  lastInterruptTime = 0;
+    static unsigned long  buttonLastInterruptTime = 0;
     unsigned long         interruptTime     = millis();
 
-    if( (1500 < (interruptTime - lastInterruptTime)) )
+    #ifdef __DEBUG2_VIA_SERIAL__
+    Serial.println("---------------------------------------");
+    Serial.println(__PRETTY_FUNCTION__);
+    #endif
+
+        
+    if( (BUTTON_PERIOD < (interruptTime - buttonLastInterruptTime)) )
     {
+        //buttonOnOff = ((true == buttonOnOff) ? false : true);
         buttonOnOff = !buttonOnOff;
-        lastInterruptTime = interruptTime;
+        buttonLastInterruptTime = interruptTime;
     }
 }
 
