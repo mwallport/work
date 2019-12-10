@@ -8,8 +8,8 @@
 //#define __DEBUG_CONTROL_PKT_RX__
 
 // platform
-//#define __USING_LINUX_USB__
-#define __USING_WINDOWS_USB__
+#define __USING_LINUX_USB__
+//#define __USING_WINDOWS_USB__
 //#define __RUNNING_ON_CONTROLLINO__
 
 // common
@@ -43,6 +43,8 @@
     #include <string.h>
     #include <unistd.h>
     #include <arpa/inet.h>
+    #include <termios.h>
+    #include <fcntl.h>
 #endif
 
 #ifdef __USING_WINDOWS_USB__
