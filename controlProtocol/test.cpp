@@ -50,7 +50,6 @@ int main(int argc, char** argv)
 
     controlProtocol cpUSB(0, 1, argv[1], speed); // my address, peer address, usb file
 
-/*
 
     if( (cpUSB.GetChillerInfo(1, ChillerInfo, 100)) ) // works
     {
@@ -61,6 +60,7 @@ int main(int argc, char** argv)
         printf("-------------------GetChillerInfo bad\n");
     }
 
+/*
 
     printf("\n\n");
     sleep(5);
@@ -187,9 +187,8 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(5);
 
-*/
 
-    if( (cpUSB.SetTECTemperature(1, 1, -8.23)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 1, -8.23)) )   // not working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -248,8 +247,9 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(5);
 
+*/
 
-    if( (cpUSB.SetChillerTemperature(1, -11.10)) ) // not working
+    if( (cpUSB.SetChillerTemperature(1, -12.34)) ) // not working
         printf("++++++++++++++++++++++success for set chiller temperature\n");
     else
         printf("----------------------fail on set chiller temperature\n");
@@ -263,6 +263,7 @@ int main(int argc, char** argv)
         printf("+++++++++++++++++++++got chiller temperature %f\n", temperature);
     else
         printf("---------------------failed to get chiller temperature\n");
+/*
 
 
     printf("\n\n");
@@ -294,6 +295,7 @@ int main(int argc, char** argv)
     else
         printf("---------------------ShutDownCmd bad\n");
     printf("\n\n");
+*/
 
 
     return(0);

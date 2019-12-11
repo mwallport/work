@@ -733,7 +733,7 @@ bool controlProtocol::GetHumidity(uint16_t destAddress, float* humidity)
 
             Parse_getHumidityResp(m_buff, humidity, &seqNum);
 
-            printf("found in packet humidity %f, seqNumer 0x%02x\n", *humidity, seqNum);
+            printf("found in packet humidity %lf, seqNumer 0x%02x\n", *humidity, seqNum);
             
             retVal  = true;
         } else
@@ -1111,7 +1111,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             Parse_getTECTemperatureResp(m_buff, result, temperature, &seqNum);
 
-            printf("found in packet temperature %f seqNumer 0x%02x\n", *temperature, seqNum);
+            printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
 
             retVal  = true;
         } else
@@ -1490,7 +1490,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
             //
             Parse_getChillerTemperatureResp(m_buff, temperature, &seqNum);
 
-            printf("found in packet temperature %f seqNumer 0x%02x\n", *temperature, seqNum);
+            printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
 
             retVal  = true;
         } else

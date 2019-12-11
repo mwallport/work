@@ -476,7 +476,6 @@ bool huber::sendGeneralCommand()
 {
     bool    retVal      = false;
     bool    cmdTxAckRx  = false;
-    uint8_t count       = 0;
     uint8_t retry       = 0;
 
 
@@ -914,9 +913,6 @@ bool huber::StopChiller()
 
 bool huber::ChillerPresent()
 {
-    bool    retVal    = false;
-
-
     //
     // sendVerifyCommand()
     //
@@ -1013,7 +1009,7 @@ const char* huber::GetExternalTemp() const
 }
 
 
-const char huber::GetTempCtrlMode() const
+char huber::GetTempCtrlMode() const
 {
     return(huberData.tempCtrlMode[0]);
 }

@@ -86,7 +86,7 @@ meerstetterRS485::~meerstetterRS485() {};
 void meerstetterRS485::ComPort_Send(char *in)
 {
     size_t size;
-    int len = strlen(in);
+    size_t len = strlen(in);
 
 
     //size = RS485Serial.write(in);
@@ -1071,7 +1071,6 @@ bool meerstetterRS485::StopTEC(uint8_t Address)
 bool meerstetterRS485::TECRunning(uint8_t Address)
 {
     bool retVal = false;
-    uint8_t Instance    = 1;
     MeParLongFields FieldVal;
 
 
@@ -1115,7 +1114,6 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
 bool meerstetterRS485::TECPresent(uint8_t Address)
 {
     bool retVal = false;
-    uint8_t Instance    = 1;
     MeParLongFields FieldVal;
 
 

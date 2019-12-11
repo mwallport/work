@@ -14,6 +14,13 @@
 // this is for frivilous debug output
 #define __DEBUG2_VIA_SERIAL__
 
+// not sure if we want to stop the chiller when the 
+// on - off button is pressed
+// and not totally sure if want to start the chiller upon
+// system boot
+// this flag 
+#define __START_CHILLER_ON_BOOTUP__
+//#define __OK_TO_STOP_CHILLER__
 
 //
 // constants - using #define - have limited space on Arduino
