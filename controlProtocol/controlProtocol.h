@@ -8,10 +8,12 @@
 //#define __DEBUG_CONTROL_PKT_RX__
 
 // platform
-#define __USING_LINUX_USB__
+//#define __USING_LINUX_USB__
+#define __USING_WINDOWS_USB__
 //#define __RUNNING_ON_CONTROLLINO__
 
 // common
+#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,9 +37,17 @@
                     ((x)>>24 & 0x000000FFUL) )
 
     #define ntohl(x) htonl(x)
+#endif
 
-#else
+#ifdef __USING_LINUX_USB__
+    #include <string.h>
+    #include <unistd.h>
     #include <arpa/inet.h>
+#endif
+
+#ifdef __USING_WINDOWS_USB__
+    #include <winsock2.h>
+    #include <windows.h>
 #endif
 
 //
@@ -565,7 +575,14 @@ class controlProtocol
     uint16_t    m_myAddress;                    // 'my' Address
     uint16_t    m_peerAddress;                  // peer address, 1 to 1 communication
     uint8_t     m_buff[MAX_BUFF_LENGTH_CP + 1]; // work m_buffer used by all functions
+    
+    #if defined(__USING_LINUX_USB__)
     int         m_fd;                           // for the USB port
+    #endif
+    
+    #if defined(__USING_WINDOWS_USB__)
+    HANDLE      m_fd;
+    #endif
 
     bool        openUSBPort(const char*, uint32_t);
     bool        verifyMessage(uint16_t, uint16_t, uint16_t, EOP);

@@ -12,14 +12,6 @@
 
 #include "controlProtocol.h"
 
-#ifdef __USING_LINUX_USB__
-#include <arpa/inet.h>
-#include <string.h>  /* String function definitions */
-#include <unistd.h>  /* UNIX standard function definitions */
-#include <fcntl.h>   /* File control definitions */
-#include <errno.h>   /* Error number definitions */
-#include <termios.h> /* POSIX terminal control definitions */
-#endif
 
 
 // crc16.cpp
@@ -49,7 +41,9 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
 {
     bool    retVal  = false;
 
-#ifdef __USING_LINUX_USB__
+// TODO: clean this crap up !!!
+
+#if defined(__USING_LINUX_USB__)
 
     struct  termios options;
 
@@ -64,70 +58,162 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
         // FNDELAY makes the fd non-blocking, doing a blocking calls
         fcntl(m_fd, F_SETFL, 0);
         retVal  = true;
+ 
+        //
+        // and set 9600N81
+        //
+        tcgetattr(m_fd, &options);
+    
+        switch(Speed)
+        {
+            case 19200:
+                cfsetispeed(&options, B19200);
+                cfsetospeed(&options, B19200);
+                break;
+    
+            case 38400:
+                cfsetispeed(&options, B38400);
+                cfsetospeed(&options, B38400);
+                break;
+    
+            case 57600:
+                cfsetispeed(&options, B57600);
+                cfsetospeed(&options, B57600);
+                break;
+    
+            default:
+            case 9600:
+                cfsetispeed(&options, B9600);
+                cfsetospeed(&options, B9600);
+                break;
+        }
+    
+        // Enable the receiver and set local mode...
+        options.c_cflag |= (CLOCAL | CREAD);
+    
+        // 8 data bits
+        //options.c_cflag &= ~CSIZE; /* Mask the character size bits */
+        //options.c_cflag |= CS8;    /* Select 8 data bits */
+    
+        // no parity
+        options.c_cflag &= ~PARENB;
+        options.c_cflag &= ~CSTOPB;
+        options.c_cflag &= ~CSIZE;
+        options.c_cflag |= CS8;
+    
+        // no hardware flow control
+        options.c_cflag &= ~CRTSCTS;
+    
+        // use raw input
+        //options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+        options.c_lflag &= ~(ICANON | ISIG);
+    
+        // no software flow control
+        options.c_iflag &= ~(IXON | IXOFF | IXANY | INLCR | ICRNL);
+    
+        // raw output
+        options.c_oflag &= ~(OPOST | ONLCR);
+    
+        // have 5 second timeout
+        options.c_cc[VMIN] = 0;
+        options.c_cc[VTIME]= 50;
+    
+        //Set the new options for the port...
+        tcsetattr(m_fd, TCSANOW, &options);
     }
 
-    //
-    // and set 9600N81
-    //
-    tcgetattr(m_fd, &options);
+#endif
 
-    switch(Speed)
+#ifdef __USING_WINDOWS_USB__
+
+    // Initializing DCB structure
+    DCB dcbSerialParams = { 0 };
+    dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
+    
+    m_fd = CreateFile(usbPort,                //port name
+                      GENERIC_READ | GENERIC_WRITE, //Read/Write
+                      0,                            // No Sharing
+                      NULL,                         // No Security
+                      OPEN_EXISTING,// Open existing port only
+                      0,            // Non Overlapped I/O
+                      NULL);        // Null for Comm Devices
+                      
+    if (m_fd == INVALID_HANDLE_VALUE)
+        printf("Error opening serial port\n");
+    else
     {
-        case 19200:
-            cfsetispeed(&options, B19200);
-            cfsetospeed(&options, B19200);
-            break;
+        printf("opening serial port successful\n");
+        retVal  = true;
+        
+        if(true == GetCommState(m_fd, &dcbSerialParams) )
+        {
+            // set the attributes we so desire ..  mm get some !
+            // speed
+            switch(Speed)
+            {
+                case 14400:
+                    dcbSerialParams.BaudRate = CBR_14400;
+                    break;
+        
+                case 19200:
+                    dcbSerialParams.BaudRate = CBR_19200;
+                    break;
+        
+                case 38400:
+                    dcbSerialParams.BaudRate = CBR_38400;
+                    break;
+        
+                case 57600:
+                    dcbSerialParams.BaudRate = CBR_57600;
+                    break;
+        
+                default:
+                case 9600:
+                    dcbSerialParams.BaudRate = CBR_9600;
+                    break;
+            }
+            
+            // set 8N1 parity
+            dcbSerialParams.ByteSize = 8;         // Setting ByteSize = 8
+            dcbSerialParams.StopBits = ONESTOPBIT;// Setting StopBits = 1
+            dcbSerialParams.Parity   = NOPARITY;  // Setting Parity = None
+            
+            // binary mode
+            dcbSerialParams.fBinary = true;
 
-        case 38400:
-            cfsetispeed(&options, B38400);
-            cfsetospeed(&options, B38400);
-            break;
+            // no software and hardware flow control
+            dcbSerialParams.fOutxCtsFlow        = false;
+            dcbSerialParams.fOutxDsrFlow        = false;
+            dcbSerialParams.fDtrControl         = DTR_CONTROL_DISABLE;
+            dcbSerialParams.fDsrSensitivity     = false;
+            dcbSerialParams.fTXContinueOnXoff   = false;
+            dcbSerialParams.fOutX               = false;
+            dcbSerialParams.fInX                = false;
+            dcbSerialParams.fErrorChar          = false;
+            dcbSerialParams.fErrorChar          = false;
+            dcbSerialParams.fRtsControl         = RTS_CONTROL_DISABLE;
+            dcbSerialParams.fAbortOnError       = false;
+            //XonLim                          = 0; // TODO: what is this
+            //XoffLim                         = 0; // TODO: what is this
+            //XonChar                       = ?; // not changing
+            //XoffChar                      = ?; // not changing
+            //ErrorChar                     = ?; // not changing
+            //EofChar                       = ?; // not changing
+            //EvtChar                       = ?; // not changing
 
-        case 57600:
-            cfsetispeed(&options, B57600);
-            cfsetospeed(&options, B57600);
-            break;
-
-        default:
-        case 9600:
-            cfsetispeed(&options, B9600);
-            cfsetospeed(&options, B9600);
-            break;
+            // set the new serial comm settings
+            if( (false == (SetCommState(m_fd, &dcbSerialParams))) )
+            {
+                printf("unable to SetCommState\n");
+                retVal = false;
+            }
+        } else
+        {
+            printf("unable to GetCommState\n");
+            retVal = false;
+        }
     }
 
-
-    // Enable the receiver and set local mode...
-    options.c_cflag |= (CLOCAL | CREAD);
-
-    // 8 data bits
-    //options.c_cflag &= ~CSIZE; /* Mask the character size bits */
-    //options.c_cflag |= CS8;    /* Select 8 data bits */
-
-    // no parity
-    options.c_cflag &= ~PARENB;
-    options.c_cflag &= ~CSTOPB;
-    options.c_cflag &= ~CSIZE;
-    options.c_cflag |= CS8;
-
-    // no hardware flow control
-    options.c_cflag &= ~CRTSCTS;
-
-    // use raw input
-    //options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-    options.c_lflag &= ~(ICANON | ISIG);
-
-    // no software flow control
-    options.c_iflag &= ~(IXON | IXOFF | IXANY | INLCR | ICRNL);
-
-    // raw output
-    options.c_oflag &= ~(OPOST | ONLCR);
-
-    // have 5 second timeout
-    options.c_cc[VMIN] = 0;
-    options.c_cc[VTIME]= 50;
-
-    //Set the new options for the port...
-    tcsetattr(m_fd, TCSANOW, &options);
 #endif
     return(retVal);
 }
@@ -172,17 +258,18 @@ controlProtocol::controlProtocol(uint16_t myAddress, uint16_t peerAddress, uint3
 
 controlProtocol::~controlProtocol()
 {
-#ifdef __USING_LINUX_USB__
+#if defined(__USING_LINUX_USB__)
     close(m_fd);
+#endif
+
+#ifdef __USING_WINDOWS_USB__
+    CloseHandle(m_fd);
 #endif
 };
 
 
 bool controlProtocol::TxCommandUSB(uint16_t length)
 {
-
-#ifdef __USING_LINUX_USB__
-
     #ifdef __DEBUG_CTRL_PROTO__
     printf(__PRETTY_FUNCTION__);
     printf("\n");
@@ -193,7 +280,8 @@ bool controlProtocol::TxCommandUSB(uint16_t length)
     }
     printf("\n");
     #endif
-
+    
+    #if defined(__USING_LINUX_USB__)
     int n = write(m_fd, m_buff, length);
 
     if( (n < 0) )
@@ -203,8 +291,20 @@ bool controlProtocol::TxCommandUSB(uint16_t length)
     {
         printf("%s sent %d bytes\n", __PRETTY_FUNCTION__, n);
     }
+    #endif
 
-#endif
+    
+    #ifdef __USING_WINDOWS_USB__
+    DWORD dNoOfBytesWritten = 0;     // No of bytes written to the port
+    
+    if( false == WriteFile(m_fd, m_buff, length, &dNoOfBytesWritten, NULL) )
+    {
+        printf("%s failed\n", __PRETTY_FUNCTION__);
+    } else
+    {
+        printf("%s sent %d bytes\n", __PRETTY_FUNCTION__, dNoOfBytesWritten);
+    }
+    #endif
 
     return(true);
 }
@@ -212,11 +312,12 @@ bool controlProtocol::TxCommandUSB(uint16_t length)
 
 bool controlProtocol::RxResponseUSB(uint16_t timeout)
 {
+#if defined(__USING_LINUX_USB__)
     uint32_t        nbytes  = 0;
     uint32_t        length;
     uint8_t*        bufptr;
     msgHeader_t*    pmsgHeader;
-#ifdef __USING_LINUX_USB__
+
     struct  termios options;
 
     printf(__PRETTY_FUNCTION__);
@@ -256,8 +357,52 @@ bool controlProtocol::RxResponseUSB(uint16_t timeout)
         bufptr += nbytes;
     }
 
-    // nul terminate the string and see if we got an OK response 
-    //*bufptr = '\0';
+#endif
+
+#ifdef __USING_WINDOWS_USB__
+    DWORD           nbytes  = 0;
+    DWORD           length;
+    uint8_t*        bufptr;
+    msgHeader_t*    pmsgHeader;
+    COMMTIMEOUTS    timeouts = { 0 };
+
+
+    timeouts.ReadIntervalTimeout         = timeout; // in milliseconds
+    timeouts.ReadTotalTimeoutConstant    = timeout; // in milliseconds
+    timeouts.ReadTotalTimeoutMultiplier  = timeout; // in milliseconds
+    timeouts.WriteTotalTimeoutConstant   = timeout; // in milliseconds
+    timeouts.WriteTotalTimeoutMultiplier = timeout; // in milliseconds
+
+    SetCommTimeouts(m_fd, &timeouts);  // assuming this works 'everytime' !
+
+    //
+    // clear da buffa' bra'
+    //
+    memset(m_buff, '\0', MAX_BUFF_LENGTH_CP + 1);
+
+    //
+    // read the message header
+    //
+    bufptr = m_buff;
+    while( (ReadFile(m_fd, static_cast<void*>(bufptr),
+        m_buff + sizeof(msgHeader_t) - bufptr, &nbytes, NULL)) )
+    {
+        bufptr += nbytes;
+        nbytes  = 0;
+    }
+
+    //
+    // read the rest of the message using length
+    //
+    pmsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+    length  = pmsgHeader->length;
+    nbytes  = 0;
+    while( (ReadFile(m_fd, bufptr, length - (bufptr - m_buff), &nbytes, NULL)) )
+    {
+        bufptr += nbytes;
+        nbytes  = 0;
+    }
+
 #endif
 
     return(true);
