@@ -21,7 +21,7 @@ int main(int argc, char** argv)
     unsigned int speed;
     
     
-    if( (3 < argc) )
+    if( (3 > argc) )
     {
         printf("Please supply USB device and speed\n");
         printf("i.e. test.exe /dev/tty/USB0 19200\n");
@@ -31,8 +31,6 @@ int main(int argc, char** argv)
     sscanf(argv[2], "%u", &speed);             // assuming this works
     printf("trying usb: %s, speed %u\n", argv[1], speed);
     
-    controlProtocol cpUSB(0, 1, argv[1], speed); // my address, peer address, usb file
-
     #ifdef __USING_WINDOWS_USB__
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -50,16 +48,6 @@ int main(int argc, char** argv)
     }
     #endif
 
-    if( 3 > argc )
-    {
-        printf("wrong cmd line args\n");
-        return(-1);
-    }
-
-    sscanf(argv[2], "%u", &speed);
-
-    printf("trying: USB: %s, speed: %u\n", argv[1], speed);
-    
     controlProtocol cpUSB(0, 1, argv[1], speed); // my address, peer address, usb file
 
 /*
@@ -211,7 +199,7 @@ int main(int argc, char** argv)
     sleep(5);
 
 
-    if( (cpUSB.GetTECTemperature(1, 1, &temperature)) ) // showing number that is too big
+    if( (cpUSB.GetTECTemperature(1, 1, &result, &temperature)) ) // showing number that is too big
         printf("++++++++++++++++++++++got TEC temperature %f\n", temperature);// works if you program in non-zero
     else
         printf("----------------------failed to get TEC temperature\n");
@@ -231,7 +219,7 @@ int main(int argc, char** argv)
     sleep(5);
 
 
-    if( (cpUSB.GetTECTemperature(1, 2, &temperature)) ) // showing number that is too big
+    if( (cpUSB.GetTECTemperature(1, 2, &result, &temperature)) ) // showing number that is too big
         printf("++++++++++++++++++++++got TEC temperature %f\n", temperature);// works if you program in non-zero
     else
         printf("----------------------failed to get TEC temperature\n");
@@ -251,7 +239,7 @@ int main(int argc, char** argv)
     sleep(5);
 
 
-    if( (cpUSB.GetTECTemperature(1, 3, &temperature)) ) // showing number that is too big
+    if( (cpUSB.GetTECTemperature(1, 3, &result, &temperature)) ) // showing number that is too big
         printf("++++++++++++++++++++++got TEC temperature %f\n", temperature);// works if you program in non-zero
     else
         printf("----------------------failed to get TEC temperature\n");
