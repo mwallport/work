@@ -12,14 +12,17 @@
 #define __DEBUG_VIA_SERIAL__
 
 // this is for frivilous debug output
-//#define __DEBUG2_VIA_SERIAL__
+#define __DEBUG2_VIA_SERIAL__
 
 
 //
-// constants
+// constants - using #define - have limited space on Arduino
 //
 #define GET_STATUS_INTERVAL     10000
+#define GET_HUMIDITY_INTERVAL   2500
+#define BUTTON_PERIOD           5000
 #define HUMIDITY_THRESHOLD      80
+#define HUMIDITY_BUFFER         10
 #define PIN_HW_ENABLE_n         8
 #define SWITCH_PIN              9
 #define MAX_BUFF_LENGHT         10
@@ -115,6 +118,11 @@ lcdFunc lcdFaces[MAX_LCD_FUNC] =
 //
 typedef enum { offline, online, running, stopped, shutdown } runningStates;
 
+//
+// system status
+//
+typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
+
 typedef struct _chillerState
 {
     runningStates   online;         // online or offline
@@ -148,8 +156,8 @@ typedef struct _tecState
 
 typedef struct _LCDState
 {
-    uint16_t        lcdFacesIndex[MAX_LCD_MSGS];// index into lcd faces array
-    uint16_t        index;                      // index into lcdFacesIndex array
+    int16_t         lcdFacesIndex[MAX_LCD_MSGS];// index into lcd faces array
+    int16_t         index;                      // index into lcdFacesIndex array
     unsigned long   prior_millis;               // prior time in millis()
 } LCDState;
 
@@ -159,6 +167,7 @@ typedef struct _systemState
     humidityState   sensor;
     tecState        tec[MAX_TEC_ADDRESS];
     LCDState        lcd;
+    systemStatus    sysStatus;
 } systemState;
 
 
@@ -171,9 +180,6 @@ const int pinA            = 2;  // 2 is PE4  -  Digital 0
 const int pinSW           = 3;  // 3 is PE5  -  Digital 1
 int       lastCount       = HUMIDITY_THRESHOLD;
 volatile  int virtualPosition = HUMIDITY_THRESHOLD;
-
-
-typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
 
 
 //
@@ -200,32 +206,35 @@ huber chiller(9600);
 //
 // meerstetter communication
 //
-meerstetterRS485 ms(9600);
+meerstetterRS485 ms(57600);
 
 //
 // control PC communication
 // assuming they will be address 0 and this program will be address 1
 //
-controlProtocol cp(1, 0, 9600);  // my address is 1, control address is 0
+controlProtocol cp(1, 0, 57600);  // my address is 1, control address is 0
 
 
 //
-// configure the button
+// configure the start/stop button
 //
 // The pin number attached to the button.
 const int BUTTON_PIN = 3;
+const int BUTTON_LED = 7;
 bool currentButtonOnOff = false;
 volatile bool buttonOnOff = false;
 
 //
-// Using the RTC to prevent getStatus() from failing while the rotary
-// knob is being used.  Testing shows that when the ISR runs for the know,
-// packet bytes of the chiller or TEC protocols disappear/are-dropped/or-something
-// causing protocol failures and bogus 'shutDowns' due to poor communication.
-// The idea is to not do getStatus() if the current time is too close to the last time
-// the knob was used .. (also will be trying to disable interrupts during get status)
+// configure the fault/no-fault LED
 //
-volatile int knobTime;
+const int FAULT_LED     = 4;
+const int NO_FAULT_LED  = 6;
 
+
+//
+// splash screen conents - shown during boot while the system is coming on-line
+//
+const char deftDevise[16] = "deftDevise     ";
+const char buildInfo[16]  = "191209         ";
 
 #endif

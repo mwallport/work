@@ -12,7 +12,7 @@
 
 
 
-void setup()
+void setup(void)
 {
 
     //
@@ -22,6 +22,11 @@ void setup()
 
 
     //
+    // set the humidity threshold to ambient + 10%
+    //
+    setInitialHumidityThreshold();
+    
+    //
     // TODO: remove this
     // banner - used to easilyeasily  find system restarts in log file
     //
@@ -30,10 +35,18 @@ void setup()
     Serial.println(" -------------------------> setup() <-----------------------"); Serial.flush();
     Serial.println(" -----------------------------------------------------------"); Serial.flush();
     #endif
+
+    //
+    // get all statuses at startup
+    // normally gotten via getStatus() which runs on a period
+    //
+    handleChillerStatus();
+    handleTECStatus();
+    getHumidityLevel();
 }
 
 
-void loop()
+void loop(void)
 { 
     //
     // getStatus will update LCD and sysStats data structure
@@ -57,7 +70,7 @@ void loop()
 
 
 // all LCD calls are void, no way to tell if the LCD is up .. 
-bool startLCD()
+bool startLCD(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -68,15 +81,18 @@ bool startLCD()
     lcd.begin(16, 2);
     lcd.noDisplay();
     lcd.clear();
-
-    // paint something .. look alive
-    manageLCD();
+    lcd.home();
+    lcd.setCursor(0,0);
+    lcd.print(deftDevise);
+    lcd.setCursor(0,1);
+    lcd.print(buildInfo);
+    lcd.display();
 
     return(true);
 }
 
 
-bool startSHTSensor()
+bool startSHTSensor(void)
 {
     bool retVal = false;
 
@@ -126,7 +142,7 @@ bool startSHTSensor()
 // - Meersteters are up
 // - chiller is running
 //
-bool startUp()
+bool startUp(void)
 {
     bool retVal = true;
 
@@ -182,44 +198,43 @@ bool startUp()
 //
 // run every 20 seconds
 //
-void getStatus()
+void getStatus(void)
 {
     static unsigned long    lastGetStatusTime       = 0;
-    static bool             getChiller              = true;
-    static systemStatus     priorStatus             = setSystemStatus();
+    static unsigned long    lastGetHumidityTime     = 0;
     unsigned long           currentGetStatusTime    = millis();
+    systemStatus            currentStatus;
 
 
     //
-    // get the chiller and TEC's status every 20 seconds
+    // get the chiller and TEC's status every GET_STATUS_INTERVAL seconds
     //
     if( (GET_STATUS_INTERVAL < (currentGetStatusTime - lastGetStatusTime)) )
     {
         #ifdef __DEBUG2_VIA_SERIAL__
-        Serial.println("---------------------------------------");
+        Serial.println("- check TECs and chiller --------------");
         Serial.println(__PRETTY_FUNCTION__);
-        //Serial.print("currentGetStatusTime: "); Serial.println(currentGetStatusTime);
-        //Serial.print("lastGetStatusTime: "); Serial.println(lastGetStatusTime);
         #endif
         
         lastGetStatusTime = currentGetStatusTime;
+        handleChillerStatus();
+        handleTECStatus();
+    }
 
-        //
-        // check the components
-        //
+
+    //
+    // get the chiller and TEC's status every GET_HUMIDITY_INTERVAL seconds
+    //
+    if( (GET_HUMIDITY_INTERVAL < (currentGetStatusTime - lastGetHumidityTime)) )
+    {
+        #ifdef __DEBUG2_VIA_SERIAL__
+        Serial.println("- check humidity ----------------------");
+        Serial.println(__PRETTY_FUNCTION__);
+        #endif
+
+        lastGetHumidityTime = currentGetStatusTime;
         getHumidityLevel();
-
-        // TODO: flip flop between chiller and TECs .. ?
-        if( (getChiller) )
-        {
-          handleChillerStatus();
-          getChiller = false;
-        } else
-        {
-          handleTECStatus();
-          getChiller = true;
-        }
-
+        
         //
         // if humidity too high, shutdown the chiller
         //
@@ -227,25 +242,37 @@ void getStatus()
         //
         if( (humidityHigh()) )
         {
-            if( (SHUTDOWN != priorStatus) )
+            if( (RUNNING == sysStates.sysStatus) || (READY == sysStates.sysStatus) )
+            {
                 shutDownSys();
-        }
+                sysStates.sysStatus = SHUTDOWN;
 
-        //
-        // set the LCD state for the overall system based on the
-        // gathered information and attach/detach knob interrupts as
-        // needed, i.e. shutdown or not - save the priorStatus to
-        // handle transition to SHUTDOWN (above)
-        //
-        priorStatus = setSystemStatus();
+                // and disable the button ISR, the uC queues up the
+                // interrupts, so if button is presssed while system is
+                // shutdown due to high humidity, that button press could
+                // cause the system to start up when the humidity failure clears
+                disableButtonISR();
+            }
+        } else
+        {
+            enableButtonISR();
+        }
     }
+
+    //
+    // set the LCD state for the overall system based on the
+    // gathered information and attach/detach knob interrupts as
+    // needed, i.e. shutdown or not - save the priorStatus to
+    // handle transition to SHUTDOWN (above)
+    //
+    setSystemStatus();
 }
 
 
 //
 // shut everything down, update the system and LCD status
 //
-bool shutDownSys()
+bool shutDownSys(void)
 {
     bool    retVal  = true;
 
@@ -302,7 +329,7 @@ bool shutDownSys()
 // turn on the chiller
 // return success if all these happen
 //
-bool startChiller()
+bool startChiller(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -363,7 +390,7 @@ bool startChiller()
 // - turn them 'on'
 // return true if all these things happen
 //
-bool startTECs()
+bool startTECs(void)
 {
     bool    retVal      = true;
     bool    TECsRunning = true;
@@ -420,10 +447,9 @@ bool startTECs()
 }
 
 
-bool stopTECs()
+bool stopTECs(void)
 {
     bool    retVal      = true;
-    bool    TECsStopped = true;
 
 
     #ifdef __DEBUG2_VIA_SERIAL__
@@ -448,14 +474,13 @@ bool stopTECs()
             #endif
 
             retVal      = false;
-            TECsStopped = false;
 
             //
             // update the LCD state at least
             //
             sysStates.lcd.lcdFacesIndex[TEC_FAIL_OFFSET]    = tec_ComFailure;
             sysStates.tec[(Address - MIN_TEC_ADDRESS)].online             = offline;
-            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state              = stopped;  // we don't know
+            sysStates.tec[(Address - MIN_TEC_ADDRESS)].state              = stopped;  // we don't know, or don't change this
 
         } else
         {
@@ -518,150 +543,152 @@ bool setChillerSetPoint(char* temp)
 }
 
 
-void handleMsgs()
+void handleMsgs(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
-    Serial.flush();
     #endif
 
 
     if( (currentButtonOnOff != buttonOnOff) )
     {
-        currentButtonOnOff = buttonOnOff;
-        
-        #ifdef __DEBUG_VIA_SERIAL__
-        Serial.print("button press happening switching ");
-        if( (true == currentButtonOnOff) ) Serial.println("on"); else Serial.println("off");
-        Serial.flush();
-        #endif
-
-        if( (true == currentButtonOnOff) )
-            startUp();
-        else
-            shutDownSys();
-    }
+        if( (!humidityHigh()) )
+        {
+            currentButtonOnOff = buttonOnOff;
+            
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print("button press happened, switching ");
+            if( (true == currentButtonOnOff) ) Serial.println("on"); else Serial.println("off");
+            Serial.flush();
+            #endif
     
- 
-    //
-    // check for message from control PC
-    //
-    if( (getMsgFromControl()) )
+            if( (true == currentButtonOnOff) )
+                startUp();
+            else
+                shutDownSys();
+        }
+    } else
     {
         //
-        // cp.m_buff has the message just received, process that message
+        // check for message from control PC
         //
-        switch( (cp.getMsgId()) )
+        if( (getMsgFromControl()) )
         {
-            case startUpCmd:                // start the chiller, TECs, and sensor
+            //
+            // cp.m_buff has the message just received, process that message
+            //
+            switch( (cp.getMsgId()) )
             {
-                handleStartUpCmd();
-                break;
+                case startUpCmd:                // start the chiller, TECs, and sensor
+                {
+                    handleStartUpCmd();
+                    break;
+                }
+    
+                case shutDownCmd:               // shutdown the chiller, TECs, and sensor
+                {
+                    handleShutDownCmd();
+                    break;
+                }
+    
+                case getStatusCmd:               // fetch the status of chiller, all TECs, and humidity sensor
+                {
+                    handleGetStatusCmd();
+                    break;
+                };
+    
+                case setHumidityThreshold:       // get the humidity threshold
+                {
+                    handleSetHumidityThreshold();
+                    break;
+                };
+    
+                case getHumidityThreshold:       // set the humidity threshold
+                {
+                    handleGetHumidityThreshold();
+                    break;
+                };
+    
+                case getHumidity:                // get current humidity and temperature
+                {
+                    handleGetHumidity();
+                    break;
+                };
+    
+                case setTECTemperature:          // target TEC m_address and temp
+                {
+                    handleSetTECTemperature();
+                    break;
+                };
+    
+                case getTECTemperature:          // target TEC m_address and temp
+                {
+                    handleGetTECTemperature();
+                    break;
+                };
+    
+                case startChillerMsg:
+                {
+                    handleStartChillerMsg();
+                    break;
+                };
+    
+                case stopChiller:
+                {
+                    handleStopChiller();
+                    break;
+                };
+    
+                case getChillerInfo:
+                {
+                    handleGetChillerInfo();
+                    break;
+                };
+    
+                case setChillerTemperature:      // target TEC m_address and temp
+                {
+                    handleSetChillerTemperature();
+                    break;
+                };
+    
+                case getChillerTemperature:      // target TEC m_address and temp
+                {
+                    handleGetChillerTemperature();
+                    break;
+                };
+    
+                case getTECInfoMsg:
+                {
+                    handlGetTECInfo();
+                    break;
+                };
+    
+                case enableTECs:                 // turn on all TECs
+                {
+                    handleEnableTECs();
+                    break;
+                };
+    
+                case disableTECs:                // turn off all TECs
+                {
+                    handleDisableTECs();
+                    break;
+                };
+    
+                default:
+                {
+                    // send NACK
+                    sendNACK();
+                    break;
+                }
             }
-
-            case shutDownCmd:               // shutdown the chiller, TECs, and sensor
-            {
-                handleShutDownCmd();
-                break;
-            }
-
-            case getStatusCmd:               // fetch the status of chiller, all TECs, and humidity sensor
-            {
-                handleGetStatusCmd();
-                break;
-            };
-
-            case setHumidityThreshold:       // get the humidity threshold
-            {
-                handleSetHumidityThreshold();
-                break;
-            };
-
-            case getHumidityThreshold:       // set the humidity threshold
-            {
-                handleGetHumidityThreshold();
-                break;
-            };
-
-            case getHumidity:                // get current humidity and temperature
-            {
-                handleGetHumidity();
-                break;
-            };
-
-            case setTECTemperature:          // target TEC m_address and temp
-            {
-                handleSetTECTemperature();
-                break;
-            };
-
-            case getTECTemperature:          // target TEC m_address and temp
-            {
-                handleGetTECTemperature();
-                break;
-            };
-
-            case startChillerMsg:
-            {
-                handleStartChillerMsg();
-                break;
-            };
-
-            case stopChiller:
-            {
-                handleStopChiller();
-                break;
-            };
-
-            case getChillerInfo:
-            {
-                handleGetChillerInfo();
-                break;
-            };
-
-            case setChillerTemperature:      // target TEC m_address and temp
-            {
-                handleSetChillerTemperature();
-                break;
-            };
-
-            case getChillerTemperature:      // target TEC m_address and temp
-            {
-                handleGetChillerTemperature();
-                break;
-            };
-
-            case getTECInfoMsg:
-            {
-                handlGetTECInfo();
-                break;
-            };
-
-            case enableTECs:                 // turn on all TECs
-            {
-                handleEnableTECs();
-                break;
-            };
-
-            case disableTECs:                // turn off all TECs
-            {
-                handleDisableTECs();
-                break;
-            };
-
-            default:
-            {
-                // send NACK
-                sendNACK();
-                break;
-            }
-        }
-    } // else no message from control
+        } // else no message from control
+    }
 }
     
 
-void lcd_initializing()
+void lcd_initializing(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -678,7 +705,7 @@ void lcd_initializing()
 }
 
 
-void lcd_starting()
+void lcd_starting(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -696,7 +723,7 @@ void lcd_starting()
 }
 
 
-void lcd_ready()
+void lcd_ready(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -712,7 +739,7 @@ void lcd_ready()
 }
 
 
-void lcd_running()
+void lcd_running(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -728,7 +755,7 @@ void lcd_running()
 }
 
 
-void lcd_shutdown()
+void lcd_shutdown(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -744,7 +771,7 @@ void lcd_shutdown()
 }
 
 
-void lcd_shuttingDown()
+void lcd_shuttingDown(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -762,7 +789,7 @@ void lcd_shuttingDown()
 }
 
 
-void lcd_startFailed()
+void lcd_startFailed(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -778,7 +805,7 @@ void lcd_startFailed()
 }
 
 
-void lcd_systemFailure()
+void lcd_systemFailure(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -796,7 +823,7 @@ void lcd_systemFailure()
 }
 
 
-void lcd_tecsRunning()
+void lcd_tecsRunning(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -818,7 +845,7 @@ void lcd_tecsRunning()
 }
 
 
-void lcd_tecsStopped()
+void lcd_tecsStopped(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -840,7 +867,7 @@ void lcd_tecsStopped()
 }
 
 
-void lcd_tecComFailure()
+void lcd_tecComFailure(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -858,7 +885,7 @@ void lcd_tecComFailure()
 }
 
 
-void lcd_chillerRunning()
+void lcd_chillerRunning(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -883,7 +910,7 @@ void lcd_chillerRunning()
 }
 
 
-void lcd_chillerStopped()
+void lcd_chillerStopped(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -908,7 +935,7 @@ void lcd_chillerStopped()
 }
 
 
-void lcd_chillerComFailure()
+void lcd_chillerComFailure(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -924,7 +951,7 @@ void lcd_chillerComFailure()
 }
 
 
-void lcd_humidityAndThreshold()
+void lcd_humidityAndThreshold(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -946,7 +973,7 @@ void lcd_humidityAndThreshold()
 }
 
 
-void lcd_highHumidity()
+void lcd_highHumidity(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -965,7 +992,7 @@ void lcd_highHumidity()
 }
 
 
-void lcd_sensorFailure()
+void lcd_sensorFailure(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
@@ -982,10 +1009,8 @@ void lcd_sensorFailure()
 }
 
 
-bool getMsgFromControl()
+bool getMsgFromControl(void)
 {
-    uint16_t        seqNum;
-    msgHeader_t*    pMsgHeader;
     bool            retVal  = false;
 
     #ifdef __DEBUG2_VIA_SERIAL__
@@ -1007,7 +1032,7 @@ bool getMsgFromControl()
 
 
 
-void handleStartUpCmd()
+void handleStartUpCmd(void)
 {
     startUpCmd_t* pstartUpCmd = reinterpret_cast<startUpCmd_t*>(cp.m_buff);
     uint16_t    respLength; 
@@ -1036,8 +1061,8 @@ void handleStartUpCmd()
                 //
                 // adjust the button
                 //
-                buttonOnOff = true;
-                currentButtonOnOff = buttonOnOff;
+                buttonOnOff         = true;
+                currentButtonOnOff  = buttonOnOff;
             } else
                 setSystemStatus();  // derive the button state
                 
@@ -1082,7 +1107,7 @@ void handleStartUpCmd()
 }
 
 
-void handleShutDownCmd()
+void handleShutDownCmd(void)
 {
     shutDownCmd_t* pshutDownCmd = reinterpret_cast<shutDownCmd_t*>(cp.m_buff);
     uint16_t    respLength; 
@@ -1111,8 +1136,8 @@ void handleShutDownCmd()
                 //
                 // adjust the button
                 //
-                buttonOnOff = false;
-                currentButtonOnOff = buttonOnOff;
+                buttonOnOff         = false;
+                currentButtonOnOff  = buttonOnOff;
             } else
                 setSystemStatus();  // derive the button state
 
@@ -1161,7 +1186,7 @@ void handleShutDownCmd()
 // all message handlers expect the controlProtocol object
 // to have the received message
 //
-void handleGetStatusCmd()
+void handleGetStatusCmd(void)
 {
     getStatus_t*    pgetStatus = reinterpret_cast<getStatus_t*>(cp.m_buff);
     uint16_t        respLength; 
@@ -1226,7 +1251,7 @@ void handleGetStatusCmd()
 
 
 
-void handleSetHumidityThreshold()
+void handleSetHumidityThreshold(void)
 {
     setHumidityThreshold_t* psetHumidityThreshold = reinterpret_cast<setHumidityThreshold_t*>(cp.m_buff);
     uint16_t                respLength; 
@@ -1297,7 +1322,7 @@ void handleSetHumidityThreshold()
 }
 
 
-void handleGetHumidityThreshold()
+void handleGetHumidityThreshold(void)
 {
     getHumidityThreshold_t* pgetHumidityThreshold = reinterpret_cast<getHumidityThreshold_t*>(cp.m_buff);
     uint16_t                respLength; 
@@ -1364,7 +1389,7 @@ void handleGetHumidityThreshold()
 }
 
 
-void handleGetHumidity()
+void handleGetHumidity(void)
 {
     getHumidity_t* pgetHumidity = reinterpret_cast<getHumidity_t*>(cp.m_buff);
     uint16_t       respLength; 
@@ -1431,7 +1456,7 @@ void handleGetHumidity()
 }
 
 
-void handleSetTECTemperature()
+void handleSetTECTemperature(void)
 {
     setTECTemperature_t* psetTECTemperature = reinterpret_cast<setTECTemperature_t*>(cp.m_buff);
     uint16_t    respLength; 
@@ -1559,14 +1584,12 @@ void handleSetTECTemperature()
 }
 
 
-void handleGetTECTemperature()
+void handleGetTECTemperature(void)
 {
     getTECTemperature_t* pgetTECTemperature = reinterpret_cast<getTECTemperature_t*>(cp.m_buff);
     uint16_t    respLength; 
     uint16_t    tecAddress;
-    uint16_t    result = 0;
-    float       setPoint;
-
+    uint16_t    result;
 
     //
     // verify the received packet, here beause this is a getTECTemperatureCmd
@@ -1605,7 +1628,7 @@ void handleGetTECTemperature()
             // use the sysStates conentent to respond, send back the received seqNum
             //
             respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                tecAddress, sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].setpoint, pgetTECTemperature->header.seqNum
+                tecAddress, result, sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].setpoint, pgetTECTemperature->header.seqNum
             );
 
             //
@@ -1645,7 +1668,7 @@ void handleGetTECTemperature()
 }
 
 
-void handleStartChillerMsg()
+void handleStartChillerMsg(void)
 {
     startChillerMsg_t* pstartChillerMsg = reinterpret_cast<startChillerMsg_t*>(cp.m_buff);
     uint16_t    respLength;
@@ -1720,7 +1743,7 @@ void handleStartChillerMsg()
 }
 
 
-void handleStopChiller()
+void handleStopChiller(void)
 {
     stopChiller_t* pstopChiller = reinterpret_cast<stopChiller_t*>(cp.m_buff);
     uint16_t    respLength;
@@ -1795,7 +1818,7 @@ void handleStopChiller()
 }
 
 
-void handleGetChillerInfo()
+void handleGetChillerInfo(void)
 {
     getChillerInfo_t* pgetChillerInfo = reinterpret_cast<getChillerInfo_t*>(cp.m_buff);
     uint16_t    respLength;
@@ -1857,12 +1880,11 @@ void handleGetChillerInfo()
 }
 
 
-void handleSetChillerTemperature()
+void handleSetChillerTemperature(void)
 {
     setChillerTemperature_t* psetChillerTemperature = reinterpret_cast<setChillerTemperature_t*>(cp.m_buff);
     uint16_t    respLength; 
     uint16_t    result = 0;
-    float       setPoint;
 
 
     //
@@ -1937,11 +1959,10 @@ void handleSetChillerTemperature()
 }
 
 
-void handleGetChillerTemperature()
+void handleGetChillerTemperature(void)
 {
     getChillerTemperature_t* pgetChillerTemperature = reinterpret_cast<getChillerTemperature_t*>(cp.m_buff);
     uint16_t    respLength; 
-    uint16_t    result = 0;
 
 
     //
@@ -1999,7 +2020,7 @@ void handleGetChillerTemperature()
 }
 
 
-void handlGetTECInfo()
+void handlGetTECInfo(void)
 {
     getTECInfoMsg_t*   pgetTECInfo = reinterpret_cast<getTECInfoMsg_t*>(cp.m_buff);
     uint16_t        respLength;
@@ -2073,7 +2094,7 @@ void handlGetTECInfo()
 }
 
 
-void handleEnableTECs()
+void handleEnableTECs(void)
 {
     enableTECs_t* penableTECs = reinterpret_cast<enableTECs_t*>(cp.m_buff);
     uint16_t    respLength; 
@@ -2147,7 +2168,7 @@ void handleEnableTECs()
 }
 
 
-void handleDisableTECs()
+void handleDisableTECs(void)
 {
     disableTECs_t* pdisableTECs = reinterpret_cast<disableTECs_t*>(cp.m_buff);
     uint16_t    respLength; 
@@ -2221,11 +2242,10 @@ void handleDisableTECs()
 }
 
 
-void sendNACK()
+void sendNACK(void)
 {
     msgHeader_t*    pmsgHeader = reinterpret_cast<msgHeader_t*>(cp.m_buff);
     uint16_t        respLength; 
-    uint16_t        result = 0;
 
 
     respLength = cp.Make_NACK(cp.m_peerAddress, cp.m_buff, pmsgHeader->seqNum);
@@ -2296,6 +2316,7 @@ void initSysStates(systemState& states)
     sysStates.lcd.lcdFacesIndex[HUMIDITY_NRML_OFFSET]  = sensor_humidityAndThreshold;
 
     sysStates.lcd.index = 0;
+    sysStates.sysStatus = SHUTDOWN;
 }
 
 
@@ -2303,7 +2324,7 @@ void initSysStates(systemState& states)
 // use the global sysStates.lcd data structures to paint
 // messages on the LCD
 //
-void manageLCD()
+void manageLCD(void)
 {
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------");
@@ -2316,18 +2337,22 @@ void manageLCD()
     //   
     if( (MAX_MSG_DISPLAY_TIME <= (millis() - sysStates.lcd.prior_millis)) )
     {
+        // set up the LCD's number of columns and rows:
+        lcd.begin(16, 2); lcd.noDisplay(); lcd.clear(); lcd.home();
+        
         //
         // update the LCD with the next message, if the next message
         // had been removed, advance to the next message
         //
-        if( (0 == sysStates.lcd.lcdFacesIndex[sysStates.lcd.index]) )
+        if( (0 == sysStates.lcd.lcdFacesIndex[sysStates.lcd.index]) ||            // no status, i.e. no fail status
+            (0 == lcdFaces[sysStates.lcd.lcdFacesIndex[(sysStates.lcd.index)]]) ) // this face has been removed
         {
             //
             // find next non-zero message, adjust sysStates.lcd.index
             //
             for(int i = ((((sysStates.lcd.index) + 1) >= MAX_LCD_MSGS) ? 0 : (sysStates.lcd.index + 1));
                 (i != sysStates.lcd.index);
-                (((i + 1) >= MAX_LCD_MSGS) ? 0 : i + 1) )
+                (((i + 1) >= MAX_LCD_MSGS) ? 0 : (i + 1)) )
             {
                 if( (0 != sysStates.lcd.lcdFacesIndex[i]) )
                 {
@@ -2378,14 +2403,6 @@ void manageLCD()
 bool getHumidityLevel(void)
 {
     bool retVal = true;
-
-
-    //
-    // the rotary encoder ISR routine interferes with normal processing
-    // if it has run recently, return success and try later
-    //
-    //if( (rotaryUsedRecently()) )
-    //    return(true);
 
 
     //
@@ -2468,7 +2485,7 @@ bool getHumidityLevel(void)
 }
 
 
-bool TECsRunning()
+bool TECsRunning(void)
 {
     bool retVal = true;
 
@@ -2483,7 +2500,7 @@ bool TECsRunning()
 }
 
 
-void enableRotaryEncoder()
+void enableRotaryEncoder(void)
 {
     // encoder
     pinMode(pinA, INPUT);
@@ -2491,34 +2508,23 @@ void enableRotaryEncoder()
     pinMode(pinB, INPUT);
     digitalWrite(pinB, HIGH);
 
-    // cannot use LOW for the interrupt signal, using LOW allows the encoder
-    // to hold the whole Controllino hostage if the encoder is held 
-    // between 'slots', i.e. if you carefully hold the encoder in a middle
-    // postion, not in a notch, the signal to the controllino will be high 
-    // (or low) continuously, im guessing causing the ISR routine to be called
-    // repeatedly so fast that nothing else runs.
-    // But !  If we use CHANGE, HIGH, RISING, FALLING here, the aforementioned
-    // problem does not happen but the performance of the knob turn is lessened
-    attachInterrupt(digitalPinToInterrupt(pinA), digitalEncoderISR, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(pinA), digitalEncoderISR, LOW);
 
     virtualPosition = sysStates.sensor.threshold;
 }
 
 
-void disableRotaryEncoder()
+void disableRotaryEncoder(void)
 {
     detachInterrupt(digitalPinToInterrupt(pinA));
 }
 
 
-void digitalEncoderISR()
+void digitalEncoderISR(void)
 {
     static unsigned long  lastInterruptTime = 0;
     unsigned long         interruptTime     = millis();
 
-
-    // update the guard time
-    knobTime = RTCSum();
 
     // pick up the system value - may have changed from ctrl PC
     virtualPosition = sysStates.sensor.threshold;
@@ -2551,17 +2557,21 @@ void digitalEncoderISR()
 
 void handleChillerStatus(void)
 {
-    //
-    // the rotary encoder ISR routine interferes with normal processing
-    // if it has run recently, return success and try later
-    //
-    //if( (rotaryUsedRecently()) )
-    //    return;
+    bool  retVal  = false;
 
+    
     //
     // get all chiller information
     //
-    if( !(chiller.GetAllChillerInfo()) )
+    if( (offline == sysStates.chiller.online) )
+    {
+        retVal = chiller.GetAllChillerInfo();
+    } else
+    {
+        retVal  = chiller.getChillerStatus();
+    }
+    
+    if( (false == retVal) )
     {
         #ifdef __DEBUG_VIA_SERIAL__
         Serial.print(__PRETTY_FUNCTION__);
@@ -2594,6 +2604,7 @@ void handleChillerStatus(void)
           sysStates.chiller.state = running;
           sysStates.lcd.lcdFacesIndex[CHILLER_NRML_OFFSET]    = chiller_Running;
         }
+
         sysStates.chiller.temperature                       = chiller.GetInternalTempFloat();
         sysStates.chiller.setpoint                          = chiller.GetSetPointFloat();
         sysStates.lcd.lcdFacesIndex[CHILLER_FAIL_OFFSET]    = no_Status;
@@ -2613,13 +2624,6 @@ void handleTECStatus(void)
     bool    TECsOnline  = true;
     bool    TECsRunning = true;
 
-
-    //
-    // the rotary encoder ISR routine interferes with normal processing
-    // if it has run recently, return success and try later
-    //
-    //if( (rotaryUsedRecently()) )
-    //    return;
 
     //
     // check all TECs running - get Device Status, possible status are
@@ -2727,7 +2731,7 @@ bool getTECInfo(uint8_t tec_address, uint32_t* deviceType, uint32_t* hwVersion,
 }
 
 
-systemStatus setSystemStatus()
+systemStatus setSystemStatus(void)
 {
     systemStatus    retVal      = RUNNING;
     bool            TECsOnline  = true;
@@ -2750,142 +2754,153 @@ systemStatus setSystemStatus()
     // the other 'bad' status for the other components shoudl already be
     // updated
     //
-    if( (offline == sysStates.sensor.online
-                    || offline == sysStates.chiller.online || false == TECsOnline) )
+    if( humidityHigh() || (offline == sysStates.sensor.online ||    // at least one is offline
+         offline == sysStates.chiller.online ||
+         false   == TECsOnline) )
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
         retVal  = SHUTDOWN;
 
-        //
-        // adjust the button
-        //
-        buttonOnOff = false;
-        currentButtonOnOff = buttonOnOff;
-
-        // enable the humidity threshold knob
-        enableRotaryEncoder();
+        if( (SHUTDOWN != sysStates.sysStatus) )
+        {
+            //
+            // adjust the button
+            //
+            buttonOnOff         = false;
+            currentButtonOnOff  = buttonOnOff;
+    
+            //
+            // adjust the button LED
+            //
+            digitalWrite(BUTTON_LED, LOW);
+    
+            //
+            // adjust the FAULT/NO-FAULT LEDs
+            //
+            digitalWrite(FAULT_LED, HIGH);
+            digitalWrite(NO_FAULT_LED, LOW);
+    
+            // enable the humidity threshold knob
+            enableRotaryEncoder();
+        }
         
-    } else if( ((online == sysStates.chiller.online && true == TECsOnline)
+    } else if( ((online == sysStates.sensor.online &&   // everything is on-line
+                 online == sysStates.chiller.online &&  // and all are not running
+                 true   == TECsOnline)
                 && (stopped == sysStates.chiller.state || false == TECsRunning)) )
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Ready;
         retVal  = READY;
         
-        //
-        // adjust the button
-        //
-        buttonOnOff = false;
-        currentButtonOnOff = buttonOnOff;
-
-        // enable the humidity threshold knob
-        enableRotaryEncoder();
-
+        if( (READY != sysStates.sysStatus) )
+        {
+            //
+            // adjust the button
+            //
+            buttonOnOff         = false;
+            currentButtonOnOff  = buttonOnOff;
+    
+            //
+            // adjust the button LED
+            //
+            digitalWrite(BUTTON_LED, LOW);
+    
+            //
+            // adjust the FAULT/NO-FAULT LEDs
+            //
+            digitalWrite(FAULT_LED, LOW);
+            digitalWrite(NO_FAULT_LED, HIGH);
+    
+            // enable the humidity threshold knob
+            enableRotaryEncoder();
+        }
     } else
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Running;
         retVal  = RUNNING;
 
-        //
-        // adjust the button
-        //
-        buttonOnOff = true;
-        currentButtonOnOff = buttonOnOff;
-
-
-        // disable the humidity threshold knob
-        disableRotaryEncoder();
+        if( (RUNNING != sysStates.sysStatus) )
+        {
+            //
+            // adjust the button
+            //
+            buttonOnOff         = true;
+            currentButtonOnOff  = buttonOnOff;
+    
+            //
+            // adjust the button LED
+            //
+            digitalWrite(BUTTON_LED, HIGH);
+    
+            //
+            // adjust the FAULT/NO-FAULT LEDs
+            //
+            digitalWrite(FAULT_LED, LOW);
+            digitalWrite(NO_FAULT_LED, HIGH);
+    
+            // disable the humidity threshold knob
+            disableRotaryEncoder();
+        }
     }
 
+    sysStates.sysStatus = retVal;
     return(retVal);
 }
 
 
-void startRTC()
+void configureButton(void)
 {
+    pinMode(BUTTON_PIN, INPUT_PULLUP);       // TODO: INPUT_PULLUP or just INPUT
+
+    // status LED - start as off
+    pinMode(BUTTON_LED, OUTPUT);
+    digitalWrite(BUTTON_LED, LOW);
+}
+
+
+void configureFaultNoFault(void)
+{
+    pinMode(FAULT_LED, OUTPUT);
+    digitalWrite(FAULT_LED, HIGH);
+    pinMode(NO_FAULT_LED, OUTPUT);
+    digitalWrite(NO_FAULT_LED, LOW);
+}
+
+
+void enableButtonISR(void)
+{
+    if( ! (humidityHigh()) )
+        attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
+}
+
+
+void disableButtonISR(void)
+{
+    detachInterrupt(digitalPinToInterrupt(BUTTON_PIN));
+}
+
+
+void buttonISR(void)
+{
+    static unsigned long  buttonLastInterruptTime = 0;
+    unsigned long         interruptTime     = millis();
+
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
     #endif
 
-    
-    //
-    // real time clock
-    //
-    Controllino_RTC_init();
-    Controllino_SetTimeDate(12,4,1,17,15,41,23); // TODO: compile time variables OK ?
-
-    // initialize these globals here
-    knobTime = RTCSum();
-}
-
-
-int RTCSum()
-{
-    int     vals[7] = {0,0,0,0,0,0,0};
-    static int sum = 0;
-
-
-    vals[0] = Controllino_GetDay();
-    vals[1] = Controllino_GetWeekDay();
-    vals[2] = Controllino_GetMonth();
-    vals[3] = Controllino_GetYear();
-    vals[4] = Controllino_GetHour();
-    vals[5] = Controllino_GetMinute();
-    vals[6] = Controllino_GetSecond();
-
-
-    for(int i = 0; i < 7; i++)
+        
+    if( (BUTTON_PERIOD < (interruptTime - buttonLastInterruptTime)) )
     {
-       sum += vals[i];
-    }
-
-    return(sum);
-}
-
-
-void configureButton()
-{
-    pinMode(BUTTON_PIN, INPUT);
-    digitalWrite(BUTTON_PIN, HIGH);
-    attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
-}
-
-
-void buttonISR()
-{
-    static unsigned long  lastInterruptTime = 0;
-    unsigned long         interruptTime     = millis();
-
-    if( (1500 < (interruptTime - lastInterruptTime)) )
-    {
+        //buttonOnOff = ((true == buttonOnOff) ? false : true);
         buttonOnOff = !buttonOnOff;
-        lastInterruptTime = interruptTime;
+        buttonLastInterruptTime = interruptTime;
     }
 }
 
 
-bool rotaryUsedRecently()
-{
-    int   currTime, RTCdiff;
-    bool  retVal = false;
-    
-
-    currTime = RTCSum();
-    RTCdiff = (currTime - knobTime); // could be negative is the knob is a' turnin' ..
-
-    if( (10 > (currTime - knobTime)) )
-        retVal = true;
-
-    #ifdef __DEBUG2_VIA_SERIAL__
-    Serial.println("---------------------------------------");
-    Serial.print(__PRETTY_FUNCTION__);Serial.print(" returning "); Serial.println(retVal);
-    #endif
-
-    return(retVal);
-}
-
-
-bool humidityHigh()
+bool humidityHigh(void)
 {
     bool retVal = false;
 
@@ -2905,7 +2920,7 @@ bool humidityHigh()
 }
 
 
-void initSystem()
+void initSystem(void)
 {
     //
     // Wire.begin() must appear before the Serial.begin(...)
@@ -2930,11 +2945,6 @@ void initSystem()
     initSysStates(sysStates);
 
     //
-    // initialize the real time clock
-    //
-    startRTC();
-
-    //
     // start the humidity sensor
     //
     startSHTSensor();
@@ -2950,12 +2960,35 @@ void initSystem()
     enableRotaryEncoder();
 
     //
-    // initialize the button
+    // initialize the start/stop button
     //
     configureButton();
+
+    //
+    // initialize the fault/no-fault LED(s)
+    //
+    configureFaultNoFault();
+    
 
     //
     // let the Serial port settle after initButton()
     //
     delay(1000);
+}
+
+
+void setInitialHumidityThreshold(void)
+{
+    //
+    // fetch current humidity 2x w/ breif delay inbetween
+    //
+    getHumidityLevel();
+
+    delay(1000);
+    getHumidityLevel();
+
+    //
+    // set threshold to ambient + 10
+    //
+    sysStates.sensor.threshold = sysStates.sensor.humidity + HUMIDITY_BUFFER;
 }

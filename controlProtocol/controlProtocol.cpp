@@ -1034,7 +1034,7 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
 }
 
 
-bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_address, float* temperature)
+bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_address, uint16_t* result, float* temperature)
 {
     bool                retVal  = false;
     uint16_t            seqNum;
@@ -1109,7 +1109,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             // report the health
             //
-            Parse_getTECTemperatureResp(m_buff, temperature, &seqNum);
+            Parse_getTECTemperatureResp(m_buff, result, temperature, &seqNum);
 
             printf("found in packet temperature %f seqNumer 0x%02x\n", *temperature, seqNum);
 
@@ -2618,7 +2618,7 @@ uint16_t controlProtocol::Make_getTECTemperature(uint16_t Address, uint8_t* pBuf
 }
 
 
-uint16_t controlProtocol::Make_getTECTemperatureResp(uint16_t Address, uint8_t* pBuff, uint16_t tec_address, float temperature, uint16_t SeqNum)
+uint16_t controlProtocol::Make_getTECTemperatureResp(uint16_t Address, uint8_t* pBuff, uint16_t tec_address, uint16_t result, float temperature, uint16_t SeqNum)
 {
     getTECTemperatureResp_t* msg = reinterpret_cast<getTECTemperatureResp_t*>(pBuff);
     uint16_t CRC = 0;
@@ -2631,6 +2631,7 @@ uint16_t controlProtocol::Make_getTECTemperatureResp(uint16_t Address, uint8_t* 
     msg->header.seqNum          = SeqNum;
     msg->header.msgNum          = getTECTemperatureResp;
     msg->tec_address            = htons(tec_address);
+    msg->result                 = htons(result);
     #ifdef __RUNNING_ON_CONTROLLINO__
     //
     // use the dostrf function, left justified, max 7 characters total, max 2 decimal places
@@ -2656,10 +2657,12 @@ uint16_t controlProtocol::Make_getTECTemperatureResp(uint16_t Address, uint8_t* 
     return(sizeof(getTECTemperatureResp_t));
 }
 
-void controlProtocol::Parse_getTECTemperatureResp(uint8_t* m_buff, float* temperature, uint16_t* pSeqNum)
+void controlProtocol::Parse_getTECTemperatureResp(uint8_t* m_buff, uint16_t* result, float* temperature, uint16_t* pSeqNum)
 {
     getTECTemperatureResp_t* pResponse = reinterpret_cast<getTECTemperatureResp_t*>(m_buff);
 
+
+    *result = ntohs(pResponse->result);
 
     #ifdef __RUNNING_ON_CONTROLLINO__
     //
@@ -3187,8 +3190,7 @@ uint16_t controlProtocol::Make_getChillerInfo(uint16_t Address, uint8_t* pBuff)
 }
 
 
-uint16_t controlProtocol::Make_getChillerInfoResp(uint16_t Address, uint8_t* pBuff, uint16_t result, uint8_t* info,
-            uint8_t length, uint16_t SeqNum)
+uint16_t controlProtocol::Make_getChillerInfoResp(uint16_t Address, uint8_t* pBuff, uint16_t result, uint8_t* info, uint8_t length, uint16_t SeqNum)
 {
     getChillerInfoResp_t* msg = reinterpret_cast<getChillerInfoResp_t*>(pBuff);
     uint16_t CRC = 0;

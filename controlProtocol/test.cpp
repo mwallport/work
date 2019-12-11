@@ -50,6 +50,19 @@ int main(int argc, char** argv)
     }
     #endif
 
+    if( 3 > argc )
+    {
+        printf("wrong cmd line args\n");
+        return(-1);
+    }
+
+    sscanf(argv[2], "%u", &speed);
+
+    printf("trying: USB: %s, speed: %u\n", argv[1], speed);
+    
+    controlProtocol cpUSB(0, 1, argv[1], speed); // my address, peer address, usb file
+
+/*
 
     if( (cpUSB.GetChillerInfo(1, ChillerInfo, 100)) ) // works
     {
@@ -157,8 +170,7 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(5);
 
-
-    if( (cpUSB.SetHumidityThreshold(1, 68)) )  // working
+    if( (cpUSB.SetHumidityThreshold(1, 70)) )  // working
         printf("+++++++++++++++++++++success on set humidity threshold\n");
     else
         printf("---------------------fail on set humidity threshold\n");
@@ -187,8 +199,9 @@ int main(int argc, char** argv)
     printf("\n\n");
     sleep(5);
 
+*/
 
-    if( (cpUSB.SetTECTemperature(1, 1, -1.11)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 1, -8.23)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -208,7 +221,7 @@ int main(int argc, char** argv)
     sleep(5);
 
 
-    if( (cpUSB.SetTECTemperature(1, 2, -2.22)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 2, -9.56)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -228,7 +241,7 @@ int main(int argc, char** argv)
     sleep(5);
 
 
-    if( (cpUSB.SetTECTemperature(1, 3, -3.33)) )   // working
+    if( (cpUSB.SetTECTemperature(1, 3, -10.89)) )   // working
         printf("+++++++++++++++++++success on set TEC temperature\n");
     else
         printf("-------------------fail on set TEC temperature\n");
@@ -293,6 +306,7 @@ int main(int argc, char** argv)
     else
         printf("---------------------ShutDownCmd bad\n");
     printf("\n\n");
+
 
     return(0);
 }
