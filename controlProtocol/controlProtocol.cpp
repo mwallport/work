@@ -389,6 +389,7 @@ bool controlProtocol::RxResponseUSB(uint16_t timeout)
     {
         bufptr += nbytes;
         nbytes  = 0;
+        if( 0 == (m_buff + sizeof(msgHeader_t) - bufptr)) break;
     }
 
     //
@@ -401,6 +402,7 @@ bool controlProtocol::RxResponseUSB(uint16_t timeout)
     {
         bufptr += nbytes;
         nbytes  = 0;
+        if( (0 == (length - (bufptr - m_buff)))) break;
     }
 
 #endif
