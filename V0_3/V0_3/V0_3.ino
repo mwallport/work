@@ -561,11 +561,22 @@ void handleMsgs(void)
             if( (true == currentButtonOnOff) ) Serial.println("on"); else Serial.println("off");
             Serial.flush();
             #endif
-    
+
             if( (true == currentButtonOnOff) )
+            {
+                //
+                // adjust the button LED
+                //
+                digitalWrite(BUTTON_LED, HIGH);
                 startUp();
-            else
+            } else
+            {
+                //
+                // adjust the button LED
+                //
+                digitalWrite(BUTTON_LED, LOW);
                 shutDownSys();
+            }
         }
     } else
     {

@@ -45,8 +45,8 @@ int main(int argc, char** argv)
     #endif
 
     // my address, peer address, usb file
-    //pCP = new controlProtocol(0, 1, argv[1], speed);
-    pCP = 0;
+    pCP = new controlProtocol(0, 1, argv[1], speed);
+    //pCP = 0;
 
     createMenu();
     handleMenu();
@@ -153,7 +153,7 @@ void executeMenuItem(void)
         (item->second)->getParameters();
 
         // exectue the command
-        (item->second)->executeTest(pCP);
+        (item->second)->execute(pCP);
         
     } else
         cout << selection << " is not valid" << endl; 

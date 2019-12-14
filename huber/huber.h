@@ -14,7 +14,7 @@
 //#define __DEBUG_HUBER__
 //#define __DEBUG_HUBER_ERROR__
 
-const uint8_t MAX_COMMAND_RETRY             = 5;
+const uint8_t MAX_COMMAND_RETRY             = 2;
 const uint8_t MAX_BUFF_LENGTH               = 32; 
 const uint8_t MAX_SLAVE_ID_LENGTH           = 2;
 const uint8_t MAX_SLAVE_NAME_LENGTH         = 20;

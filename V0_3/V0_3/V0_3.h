@@ -20,7 +20,7 @@
 // system boot
 // this flag 
 #define __START_CHILLER_ON_BOOTUP__
-//#define __OK_TO_STOP_CHILLER__
+#define __OK_TO_STOP_CHILLER__
 
 //
 // constants - using #define - have limited space on Arduino
