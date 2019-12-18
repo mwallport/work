@@ -16,11 +16,13 @@ typedef bool (controlProtocol::*pSetHumidityThreshold_t)(uint16_t, uint16_t);
 typedef bool (controlProtocol::*pGetHumidityThreshold_t)(uint16_t, uint16_t*);
 typedef bool (controlProtocol::*pSetTECTemperature_t)(uint16_t, uint16_t, float);
 typedef bool (controlProtocol::*pGetTECTemperature_t)(uint16_t, uint16_t, uint16_t*, float*);
+typedef bool (controlProtocol::*pGetTECObjTemperature_t)(uint16_t, uint16_t, uint16_t*, float*);
 typedef bool (controlProtocol::*pStartChiller_t)(uint16_t);
 typedef bool (controlProtocol::*pStopChiller_t)(uint16_t);
 typedef bool (controlProtocol::*pGetChillerInfo_t)(uint16_t, char*, uint8_t);
 typedef bool (controlProtocol::*pSetChillerTemperature_t)(uint16_t, float);
 typedef bool (controlProtocol::*pGetChillerTemperature_t)(uint16_t, float*);
+typedef bool (controlProtocol::*pGetChillerObjTemperature_t)(uint16_t, float*);
 typedef bool (controlProtocol::*pEnableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pDisableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pGetTECInfo_t)(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
@@ -315,6 +317,43 @@ class menuGetTECTemperature : public menuItemBase
 };
 
 
+class menuGetTECObjTemperature : public menuItemBase
+{
+    public:
+    pGetTECObjTemperature_t m_pGetTECObjTemperature;
+    
+    void getParameters(void)
+    {
+        cout << "enter dest address: "; cin >> m_destId;
+        cout << "enter TEC address:  "; cin >> TECAddress;
+    }
+
+    menuGetTECObjTemperature()
+        : menuItemBase("GetTECObjTemperature", "get a TCU's object temperature"),
+            m_pGetTECObjTemperature(&controlProtocol::GetTECObjTemperature) { }
+
+    void execute(controlProtocol* pCP)
+    {
+        if( (pCP->*m_pGetTECObjTemperature)(m_destId, TECAddress, &result, &temperature) )
+        {
+            if( (result) )
+                cout << "\nGetTECObjTemperature: " << temperature << endl;
+            else
+                cout << "\nGetTECObjTemperature failed to return temp" << endl;
+        } else
+            cout << "\nGetTECObjTemperature failed" << endl;
+    }
+
+    uint16_t TECAddress;
+    uint16_t result;
+    float temperature; 
+    
+    private:
+    menuGetTECObjTemperature(const menuItemBase&);
+    menuGetTECObjTemperature& operator=(const menuItemBase&);
+};
+
+
 //    bool    StartChiller(uint16_t);
 class menuStartChiller : public menuItemBase
 {
@@ -460,6 +499,36 @@ class menuGetChillerTemperature : public menuItemBase
     private:
     menuGetChillerTemperature(const menuItemBase&);
     menuGetChillerTemperature& operator=(const menuItemBase&);
+};
+
+
+class menuGetChillerObjTemperature : public menuItemBase
+{
+    public:
+    pGetChillerObjTemperature_t m_pGetChillerObjTemperature;
+    
+    void getParameters(void)
+    {
+        cout << "enter dest address: "; cin >> m_destId;
+    }
+
+    menuGetChillerObjTemperature()
+        : menuItemBase("GetChillerObjTemperature", "get the chiller intgernal temp"),
+            m_pGetChillerObjTemperature(&controlProtocol::GetChillerObjTemperature) {}
+
+    void execute(controlProtocol* pCP)
+    {
+        if( (pCP->*m_pGetChillerObjTemperature)(m_destId, &temperature) )
+            cout << "\nGetChillerObjTemperature: " << temperature << endl;
+        else
+            cout << "\nGetChillerObjTemperature failed" << endl;
+    }
+
+    float   temperature;
+
+    private:
+    menuGetChillerObjTemperature(const menuItemBase&);
+    menuGetChillerObjTemperature& operator=(const menuItemBase&);
 };
 
 

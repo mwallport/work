@@ -926,6 +926,7 @@ bool huber::SetSetPoint(const char* pSetPoint)
     uint8_t     count   = 0;
     float       setTemp;
     uint16_t    int1, int2;
+    int         written;
 
 
     //
@@ -942,11 +943,36 @@ bool huber::SetSetPoint(const char* pSetPoint)
     Buff[count++] = '*';    // Temp control mode - query only
     Buff[count++] = '*';    // Alarms query, don't change current state
 
+
     // convert pSetPoint to ASCII HEX representation
     setTemp = atof(pSetPoint);
     int1    = setTemp * (float)100; // rid the funky float conversion past 2 decimals
-    snprintf(reinterpret_cast<char*>(&Buff[count]), 5, "%X", int1);
-    count += 4;
+
+    written = snprintf(reinterpret_cast<char*>(&Buff[count]), 5, "%X", int1);
+
+    if( (1 > written) ) // all zeros
+    {
+        Buff[count++] = '0'; Buff[count++] = '0'; Buff[count++] = '0'; Buff[count++] = '0';
+    } else if( (2 > written) ) // shift 3
+    {
+        Buff[count++] = '0'; Buff[count++] = '0'; Buff[count++] = '0';
+        snprintf(reinterpret_cast<char*>(&Buff[count]), 2, "%X", int1);
+        count += 1;
+    } else if( (3 > written) ) // shift 2
+    {
+        Buff[count++] = '0'; Buff[count++] = '0';
+        snprintf(reinterpret_cast<char*>(&Buff[count]), 3, "%X", int1);
+        count += 2;
+    }
+    else if( (4 > written) ) //shift 1
+    {
+        Buff[count++] = '0';
+        snprintf(reinterpret_cast<char*>(&Buff[count]), 4, "%X", int1);
+        count += 3;
+    } else
+    {
+        count += 4;
+    }
 
     Buff[count++] = 'x';    // check sum setLengthAndCheckSum to fill in
     Buff[count++] = 'x';    // check sum setLengthAndCheckSum to fill in

@@ -400,7 +400,7 @@ bool startTECs(void)
     // only start the TECs if the chiller is running
     // only in the SHUTDOWN state is the chiller not running (fucking Yoda?)
     //
-    if( (SHUTDOWN != sysStates.sysStatus) )
+    if( (running == sysStates.chiller.state) )
     {
         //
         // expecting the addresses to be 1, 2, and 3
@@ -535,6 +535,7 @@ bool setChillerSetPoint(char* temp)
     #ifdef __DEBUG2_VIA_SERIAL__
     Serial.println("---------------------------------------");
     Serial.println(__PRETTY_FUNCTION__);
+    Serial.flush();
     #endif
 
 
@@ -634,7 +635,13 @@ void handleMsgs(void)
     
                 case getTECTemperature:          // target TEC m_address and temp
                 {
-                    handleGetTECTemperature();
+                    handleGetTECTemperature(false);
+                    break;
+                };
+    
+                case getTECObjTemperature:
+                {
+                    handleGetTECTemperature(true);
                     break;
                 };
     
@@ -664,7 +671,13 @@ void handleMsgs(void)
     
                 case getChillerTemperature:      // target TEC m_address and temp
                 {
-                    handleGetChillerTemperature();
+                    handleGetChillerTemperature(true);
+                    break;
+                };
+    
+                case getChillerObjTemperature:      // target TEC m_address and temp
+                {
+                    handleGetChillerTemperature(false);
                     break;
                 };
     
@@ -1073,6 +1086,12 @@ void handleStartUpCmd(void)
                 //
                 buttonOnOff         = true;
                 currentButtonOnOff  = buttonOnOff;
+
+                //
+                // adjust the button LED
+                //
+                digitalWrite(BUTTON_LED, HIGH);
+                
             } else
                 setSystemStatus();  // derive the button state
                 
@@ -1148,6 +1167,12 @@ void handleShutDownCmd(void)
                 //
                 buttonOnOff         = false;
                 currentButtonOnOff  = buttonOnOff;
+
+                //
+                // adjust the button LED
+                //
+                digitalWrite(BUTTON_LED, LOW);
+              
             } else
                 setSystemStatus();  // derive the button state
 
@@ -1598,12 +1623,13 @@ void handleSetTECTemperature(void)
 }
 
 
-void handleGetTECTemperature(void)
+void handleGetTECTemperature(bool getObjTemp)
 {
     getTECTemperature_t* pgetTECTemperature = reinterpret_cast<getTECTemperature_t*>(cp.m_buff);
     uint16_t    respLength; 
     uint16_t    tecAddress;
     uint16_t    result;
+
 
     //
     // verify the received packet, here beause this is a getTECTemperatureCmd
@@ -1641,9 +1667,14 @@ void handleGetTECTemperature(void)
             //
             // use the sysStates conentent to respond, send back the received seqNum
             //
-            respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                tecAddress, result, sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].setpoint, pgetTECTemperature->header.seqNum
-            );
+            if( (true == getObjTemp) )
+                respLength = cp.Make_getTECObjTemperatureResp(cp.m_peerAddress, cp.m_buff,
+                    tecAddress, result, sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].temperature,
+                    pgetTECTemperature->header.seqNum);
+            else
+                respLength = cp.Make_getTECTemperatureResp(cp.m_peerAddress, cp.m_buff,
+                    tecAddress, result, sysStates.tec[(tecAddress - MIN_TEC_ADDRESS)].setpoint,
+                    pgetTECTemperature->header.seqNum);
 
             //
             // use the CP object to send the response back
@@ -1974,7 +2005,7 @@ void handleSetChillerTemperature(void)
 }
 
 
-void handleGetChillerTemperature(void)
+void handleGetChillerTemperature(bool GetSetPoint)
 {
     getChillerTemperature_t* pgetChillerTemperature = reinterpret_cast<getChillerTemperature_t*>(cp.m_buff);
     uint16_t    respLength; 
@@ -1995,9 +2026,12 @@ void handleGetChillerTemperature(void)
             //
             // chiller informaion is gotton during getStatus
             //
-            respLength = cp.Make_getChillerTemperatureResp(cp.m_peerAddress, cp.m_buff,
-                sysStates.chiller.temperature, pgetChillerTemperature->header.seqNum
-            );
+            if( (true == GetSetPoint) )
+                respLength = cp.Make_getChillerTemperatureResp(cp.m_peerAddress, cp.m_buff,
+                    sysStates.chiller.setpoint, pgetChillerTemperature->header.seqNum);
+            else
+                respLength = cp.Make_getChillerObjTemperatureResp(cp.m_peerAddress, cp.m_buff,
+                    sysStates.chiller.temperature, pgetChillerTemperature->header.seqNum);
 
             //
             // use the CP object to send the response back
@@ -2776,36 +2810,40 @@ systemStatus setSystemStatus(void)
     }
 
 
-    if( (humidityHigh() || offline == sysStates.sensor.online ||
-        offline == sysStates.chiller.online || running != sysStates.chiller.state || false== TECsOnline) )
-    {
+    //
+    // special case check - if the chiller is not running and the TECs are running, shutdown the TECs
+    //
+    
+    if( (sysStates.chiller.state != running && TECsRunning == true) || (humidityHigh())
+        || (offline == sysStates.sensor.online || offline == sysStates.chiller.online || false== TECsOnline) ) {
+          
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
         retVal  = SHUTDOWN;
 
         if( (SHUTDOWN != sysStates.sysStatus) )
         {
-            shutDownSys();
-            
-            //
-            // adjust the button
-            //
             buttonOnOff         = false;
             currentButtonOnOff  = buttonOnOff;
-    
-            //
-            // adjust the button LED
-            //
-            digitalWrite(BUTTON_LED, LOW);
-    
-            //
-            // adjust the FAULT/NO-FAULT LEDs
-            //
-            digitalWrite(FAULT_LED, HIGH);
-            digitalWrite(NO_FAULT_LED, LOW);
-    
-            // enable the humidity threshold knob
-            enableRotaryEncoder();
+            shutDownSys();
         }
+
+        //
+        // ALWAYS adjust the button, knobs, and LEDs
+        //
+    
+        //
+        // adjust the button LED
+        //
+        digitalWrite(BUTTON_LED, LOW);
+    
+        //
+        // adjust the FAULT/NO-FAULT LEDs
+        //
+        digitalWrite(FAULT_LED, HIGH);
+        digitalWrite(NO_FAULT_LED, LOW);
+    
+        // enable the humidity threshold knob
+        enableRotaryEncoder();
 
     //
     // READY - else everythig is online, chiller is running, TECs are not running
@@ -2813,19 +2851,16 @@ systemStatus setSystemStatus(void)
     } else if( ((online == sysStates.sensor.online &&
                  online == sysStates.chiller.online &&
                  true   == TECsOnline)
-                && (running == sysStates.chiller.state && false == TECsRunning)) )
+                && (running != sysStates.chiller.state || false == TECsRunning)) )
     {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Ready;
         retVal  = READY;
-        
+
         if( (READY != sysStates.sysStatus) )
         {
-            //
-            // adjust the button
-            //
             buttonOnOff         = false;
             currentButtonOnOff  = buttonOnOff;
-    
+
             //
             // adjust the button LED
             //
@@ -2851,12 +2886,8 @@ systemStatus setSystemStatus(void)
 
         if( (RUNNING != sysStates.sysStatus) )
         {
-            //
-            // adjust the button
-            //
             buttonOnOff         = true;
             currentButtonOnOff  = buttonOnOff;
-    
             //
             // adjust the button LED
             //
@@ -2867,7 +2898,7 @@ systemStatus setSystemStatus(void)
             //
             digitalWrite(FAULT_LED, LOW);
             digitalWrite(NO_FAULT_LED, HIGH);
-    
+   
             // disable the humidity threshold knob
             disableRotaryEncoder();
         }

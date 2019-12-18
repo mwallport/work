@@ -588,7 +588,7 @@ bool controlProtocol::GetStatus(uint16_t destAddress, uint16_t* humidityAlert,
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -683,7 +683,7 @@ bool controlProtocol::GetHumidity(uint16_t destAddress, float* humidity)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -775,7 +775,7 @@ bool controlProtocol::SetHumidityThreshold(uint16_t destAddress, uint16_t thresh
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -869,7 +869,7 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -964,7 +964,7 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1058,7 +1058,7 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1129,6 +1129,99 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
     return(retVal);
 }
 
+bool controlProtocol::GetTECObjTemperature(uint16_t destAddress, uint16_t tec_address, uint16_t* result, float* temperature)
+{
+    bool                retVal  = false;
+    uint16_t            seqNum;
+    msgHeader_t*        pMsgHeader;
+    getTECObjTemperatureResp_t*    pgetTECObjTemperatureResp;
+
+
+    //
+    // increment the sequence number for this transaction
+    //
+    ++m_seqNum;
+
+    if( (doTxCommand(Make_getTECObjTemperature(destAddress, m_buff, tec_address))) )
+    {
+        //
+        // save the seqNum
+        //
+        pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+        seqNum  = pMsgHeader->seqNum;
+
+        // get the return packet
+        if( (doRxResponse(COMM_TIMEOUT)) )
+        {
+            #ifdef __DEBUG_CTRL_PROTO__
+            //
+            // dump out what we got
+            //
+            for(uint16_t i = 0; i < sizeof(getTECObjTemperatureResp_t); i++)
+            {
+                printf("0x%02X ", m_buff[i]);
+            }
+            printf("\n");
+            #endif
+
+            //
+            // check got the expected message number
+            //
+            pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+            if( (getTECObjTemperatureResp != pMsgHeader->msgNum) )
+            {
+                fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
+                    __PRETTY_FUNCTION__, pMsgHeader->msgNum);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+            //
+            // cast into the buffer, pick up the CRC
+            //
+            pgetTECObjTemperatureResp = reinterpret_cast<getTECObjTemperatureResp_t*>(m_buff);
+
+            //
+            // verify seqNum and CRC
+            //
+            if( !(verifyMessage(len_getTECObjTemperatureResp_t, ntohs(pgetTECObjTemperatureResp->crc),
+                                            seqNum, ntohs(pgetTECObjTemperatureResp->eop))) )
+            {
+                // TODO: drop the packet
+                fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
+                        __PRETTY_FUNCTION__);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+
+            //
+            // report the health
+            //
+            Parse_getTECObjTemperatureResp(m_buff, result, temperature, &seqNum);
+
+            printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
+
+            retVal  = true;
+        } else
+        {
+            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+        }
+
+    } else
+    {
+        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+    }
+
+    return(retVal);
+}
+
 
 bool controlProtocol::StartChiller(uint16_t destAddress)
 {
@@ -1153,7 +1246,7 @@ bool controlProtocol::StartChiller(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1248,7 +1341,7 @@ bool controlProtocol::StopChiller(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1343,7 +1436,7 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1437,7 +1530,7 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1509,6 +1602,100 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
 }
 
 
+bool controlProtocol::GetChillerObjTemperature(uint16_t destAddress, float* temperature)
+{
+    bool                retVal  = false;
+    uint16_t            seqNum;
+    msgHeader_t*        pMsgHeader;
+    getChillerObjTemperatureResp_t*    pgetChillerObjTemperatureResp;
+
+
+    //
+    // increment the sequence number for this transaction
+    //
+    ++m_seqNum;
+
+    if( (doTxCommand(Make_getChillerObjTemperature(destAddress, m_buff))) )
+    {
+        //
+        // save the seqNum
+        //
+        pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+        seqNum  = pMsgHeader->seqNum;
+
+        // get the return packet
+        if( (doRxResponse(COMM_TIMEOUT)) )
+        {
+            #ifdef __DEBUG_CTRL_PROTO__
+            //
+            // dump out what we got
+            //
+            for(uint16_t i = 0; i < sizeof(getChillerObjTemperatureResp_t); i++)
+            {
+                printf("0x%02X ", m_buff[i]);
+            }
+            printf("\n");
+            #endif
+
+            //
+            // check got the expected message number
+            //
+            pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+            if( (getChillerObjTemperatureResp != pMsgHeader->msgNum) )
+            {
+                fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
+                    __PRETTY_FUNCTION__, pMsgHeader->msgNum);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+            //
+            // cast into the buffer, pick up the CRC
+            //
+            pgetChillerObjTemperatureResp = reinterpret_cast<getChillerObjTemperatureResp_t*>(m_buff);
+
+            //
+            // verify seqNum and CRC
+            //
+            if( !(verifyMessage(len_getChillerObjTemperatureResp_t, ntohs(pgetChillerObjTemperatureResp->crc),
+                                            seqNum, ntohs(pgetChillerObjTemperatureResp->eop))) )
+            {
+                // TODO: drop the packet
+                fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
+                        __PRETTY_FUNCTION__);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+
+            //
+            // report the health
+            //
+            Parse_getChillerObjTemperatureResp(m_buff, temperature, &seqNum);
+
+            printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
+
+            retVal  = true;
+        } else
+        {
+            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+        }
+
+    } else
+    {
+        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+    }
+
+    return(retVal);
+}
+
+
 bool controlProtocol::GetChillerInfo(uint16_t destAddress, char* info, uint8_t length)
 {
     bool                retVal  = false;
@@ -1532,7 +1719,7 @@ bool controlProtocol::GetChillerInfo(uint16_t destAddress, char* info, uint8_t l
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1627,7 +1814,7 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1722,7 +1909,7 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1818,7 +2005,7 @@ bool controlProtocol::GetTECInfo(uint16_t destAddress, uint16_t tec_address,
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -1914,7 +2101,7 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -2009,7 +2196,7 @@ bool controlProtocol::ShutDownCmd(uint16_t destAddress)
         seqNum  = pMsgHeader->seqNum;
 
         // get the return packet
-        if( (doRxResponse(10000)) )
+        if( (doRxResponse(COMM_TIMEOUT)) )
         {
             #ifdef __DEBUG_CTRL_PROTO__
             //
@@ -2679,6 +2866,93 @@ void controlProtocol::Parse_getTECTemperatureResp(uint8_t* m_buff, uint16_t* res
 }
 
 
+uint16_t controlProtocol::Make_getTECObjTemperature(uint16_t Address, uint8_t* pBuff, uint16_t tec_address)
+{
+    getTECObjTemperature_t* msg = reinterpret_cast<getTECObjTemperature_t*>(pBuff);
+    uint16_t CRC = 0;
+
+
+    // create the getStatus message in pBuff and CRC16 checksum it
+    msg->header.control         = COMMAND;
+    msg->header.length          = sizeof(getTECObjTemperature_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = m_seqNum;
+    msg->header.msgNum          = getTECObjTemperature;
+    msg->tec_address            = htons(tec_address);
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_getTECObjTemperature_t);
+
+    // put the CRC
+    msg->crc    = htons(CRC);   // TODO: need htons ?
+
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getTECObjTemperature_t));
+}
+
+
+uint16_t controlProtocol::Make_getTECObjTemperatureResp(uint16_t Address, uint8_t* pBuff, uint16_t tec_address, uint16_t result, float temperature, uint16_t SeqNum)
+{
+    getTECObjTemperatureResp_t* msg = reinterpret_cast<getTECObjTemperatureResp_t*>(pBuff);
+    uint16_t CRC = 0;
+
+
+    // create the getStatus message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(getTECObjTemperatureResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = getTECObjTemperatureResp;
+    msg->tec_address            = htons(tec_address);
+    msg->result                 = htons(result);
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // use the dostrf function, left justified, max 7 characters total, max 2 decimal places
+    //
+    dtostrf(temperature, -(MAX_TEC_TEMP_LENGH), 2, reinterpret_cast<char*>(msg->temperature));
+    #else
+    //
+    // use the snprintf function, 
+    //
+    snprintf(reinterpret_cast<char*>(msg->temperature), MAX_TEC_TEMP_LENGH, "%-+3.2f", temperature);
+    #endif
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_getTECObjTemperatureResp_t);
+
+    // put the CRC
+    msg->crc    = htons(CRC);   // TODO: need htons ?
+
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getTECObjTemperatureResp_t));
+}
+
+void controlProtocol::Parse_getTECObjTemperatureResp(uint8_t* m_buff, uint16_t* result, float* temperature, uint16_t* pSeqNum)
+{
+    getTECObjTemperatureResp_t* pResponse = reinterpret_cast<getTECObjTemperatureResp_t*>(m_buff);
+
+
+    *result = ntohs(pResponse->result);
+
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // on uC use atof, sscanf support is dodgy
+    //
+    *temperature = atof(reinterpret_cast<char*>(pResponse->temperature));
+    #else
+    sscanf(reinterpret_cast<char*>(pResponse->temperature), "%f", temperature);
+    #endif
+
+    *pSeqNum    = pResponse->header.seqNum;
+}
+
+
 uint16_t controlProtocol::Make_getTECInfoMsg(uint16_t Address, uint8_t* pBuff, uint16_t tec_address)
 {
     getTECInfoMsg_t* msg = reinterpret_cast<getTECInfoMsg_t*>(pBuff);
@@ -3150,6 +3424,87 @@ uint16_t controlProtocol::Make_getChillerTemperatureResp(uint16_t Address, uint8
 void controlProtocol::Parse_getChillerTemperatureResp(uint8_t* m_buff, float* temperature, uint16_t* pSeqNum)
 {
     getChillerTemperatureResp_t* pResponse = reinterpret_cast<getChillerTemperatureResp_t*>(m_buff);
+
+
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // on uC use atof, sscanf support is dodgy
+    //
+    *temperature = atof(reinterpret_cast<char*>(pResponse->temperature));
+    #else
+    sscanf(reinterpret_cast<char*>(pResponse->temperature), "%f", temperature);
+    #endif
+
+    *pSeqNum    = pResponse->header.seqNum;
+}
+
+
+uint16_t controlProtocol::Make_getChillerObjTemperature(uint16_t Address, uint8_t* pBuff)
+{
+    getChillerObjTemperature_t* msg = reinterpret_cast<getChillerObjTemperature_t*>(pBuff);
+    uint16_t CRC = 0;
+
+
+    // create the getStatus message in pBuff and CRC16 checksum it
+    msg->header.control         = COMMAND;
+    msg->header.length          = sizeof(getChillerObjTemperature_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = m_seqNum;
+    msg->header.msgNum          = getChillerObjTemperature;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_getChillerObjTemperature_t);
+
+    // put the CRC
+    msg->crc    = htons(CRC);   // TODO: need htons ?
+
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getChillerObjTemperature_t));
+}
+
+uint16_t controlProtocol::Make_getChillerObjTemperatureResp(uint16_t Address, uint8_t* pBuff, float temperature, uint16_t SeqNum)
+{
+    getChillerObjTemperatureResp_t* msg = reinterpret_cast<getChillerObjTemperatureResp_t*>(pBuff);
+    uint16_t CRC = 0;
+
+
+    // create the getStatus message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(getChillerObjTemperatureResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = getChillerObjTemperatureResp;
+    #ifdef __RUNNING_ON_CONTROLLINO__
+    //
+    // use the dostrf function, left justified, max 7 characters total, max 2 decimal places
+    //
+    dtostrf(temperature, -(MAX_CHILLER_TEMP_LENGH), 2, reinterpret_cast<char*>(msg->temperature));
+    #else
+    //
+    // use the snprintf function, 
+    //
+    snprintf(reinterpret_cast<char*>(msg->temperature), MAX_CHILLER_TEMP_LENGH, "%-+3.2f", temperature);
+    #endif
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_getChillerObjTemperatureResp_t);
+
+    // put the CRC
+    msg->crc    = htons(CRC);   // TODO: need htons ?
+
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getChillerObjTemperatureResp_t));
+}
+
+void controlProtocol::Parse_getChillerObjTemperatureResp(uint8_t* m_buff, float* temperature, uint16_t* pSeqNum)
+{
+    getChillerObjTemperatureResp_t* pResponse = reinterpret_cast<getChillerObjTemperatureResp_t*>(m_buff);
 
 
     #ifdef __RUNNING_ON_CONTROLLINO__

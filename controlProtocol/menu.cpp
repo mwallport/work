@@ -95,6 +95,9 @@ void createMenu(void)
     p_menuItem  = new menuGetChillerTemperature;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
+    p_menuItem  = new menuGetChillerObjTemperature;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
     p_menuItem  = new menuGetTECInfo;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
@@ -102,6 +105,9 @@ void createMenu(void)
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
     p_menuItem  = new menuGetTECTemperature;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
+    p_menuItem  = new menuGetTECObjTemperature;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
     p_menuItem  = new menuEnableTECs;
