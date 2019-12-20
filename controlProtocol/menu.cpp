@@ -7,6 +7,7 @@
 controlProtocol* pCP;               //gobal controlProtocol pointer
 map<int, menuItemBase*> menuItems;  // gobal map of the menu items
 
+
 void createMenu(void);              // create the menu
 void handleMenu(void);              // execute the menu
 void showMenu(void);                // put menu on the screen
@@ -20,7 +21,7 @@ int main(int argc, char** argv)
     if( (3 > argc) )
     {
         printf("Please supply USB device and speed\n");
-        printf("i.e. test.exe /dev/tty/USB0 19200\n");
+        printf("i.e. test.exe COM6 57600\n");
         return(-1);
     }
     
@@ -46,7 +47,6 @@ int main(int argc, char** argv)
 
     // my address, peer address, usb file
     pCP = new controlProtocol(0, 1, argv[1], speed);
-    //pCP = 0;
 
     createMenu();
     handleMenu();
@@ -132,7 +132,7 @@ void showMenu(void)
 {
     char number[3];
     
-    cout << endl; cout.flush();
+    cout << endl;; cout.flush();
     
     for(map<int, menuItemBase*>::iterator i = menuItems.begin(); i != menuItems.end(); ++i)
     {
@@ -141,7 +141,7 @@ void showMenu(void)
         cout << setw(5) << std::left << item << *(i->second) << endl;
     }
     
-    cout.flush(); cout << "\n\nEnter number (Ctrl+C to exit): "; cout.flush();
+    cout.flush(); cout << "\nEnter number (Ctrl+C to exit): "; cout.flush();
 }
 
 

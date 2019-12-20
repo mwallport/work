@@ -41,7 +41,6 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
 {
     bool    retVal  = false;
 
-// TODO: clean this crap up !!!
 
 #if defined(__USING_LINUX_USB__)
 
@@ -51,7 +50,7 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
     m_fd = open(usbPort, O_RDWR | O_NOCTTY | O_NDELAY);
     if( (m_fd == -1) )
     {
-        fprintf(stderr, "%s unable to open %s\n", __PRETTY_FUNCTION__, usbPort);
+        fprintf(stderr, "unable to open %s\n", usbPort);
         retVal  = false;
     } else
     {
@@ -139,10 +138,9 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
                       NULL);        // Null for Comm Devices
                       
     if (m_fd == INVALID_HANDLE_VALUE)
-        printf("Error opening serial port\n");
+        fprintf(stderr, "unable to open %s\n", usbPort);
     else
     {
-        printf("opening serial port successful\n");
         retVal  = true;
         
         if(true == GetCommState(m_fd, &dcbSerialParams) )
@@ -204,12 +202,12 @@ bool controlProtocol::openUSBPort(const char* usbPort, uint32_t Speed)
             // set the new serial comm settings
             if( (false == (SetCommState(m_fd, &dcbSerialParams))) )
             {
-                printf("unable to SetCommState\n");
+                fprintf(stderr, "unable to SetCommState\n");
                 retVal = false;
             }
         } else
         {
-            printf("unable to GetCommState\n");
+            fprintf(stderr, "unable to GetCommState\n");
             retVal = false;
         }
     }
@@ -286,10 +284,7 @@ bool controlProtocol::TxCommandUSB(uint16_t length)
 
     if( (n < 0) )
     {
-        printf("%s failed with 0x%x\n", __PRETTY_FUNCTION__, n);
-    } else
-    {
-        printf("%s sent %d bytes\n", __PRETTY_FUNCTION__, n);
+        fprintf(stderr, "%s write() failed\n", __PRETTY_FUNCTION__);
     }
     #endif
 
@@ -299,10 +294,7 @@ bool controlProtocol::TxCommandUSB(uint16_t length)
     
     if( false == WriteFile(m_fd, m_buff, length, &dNoOfBytesWritten, NULL) )
     {
-        printf("%s failed\n", __PRETTY_FUNCTION__);
-    } else
-    {
-        printf("%s sent %d bytes\n", __PRETTY_FUNCTION__, dNoOfBytesWritten);
+        fprintf(stderr, "%s WriteFile() failed\n", __PRETTY_FUNCTION__);
     }
     #endif
 
@@ -317,11 +309,7 @@ bool controlProtocol::RxResponseUSB(uint16_t timeout)
     uint32_t        length;
     uint8_t*        bufptr;
     msgHeader_t*    pmsgHeader;
-
     struct  termios options;
-
-    printf(__PRETTY_FUNCTION__);
-    printf("\n");
 
 
     //
@@ -643,18 +631,20 @@ bool controlProtocol::GetStatus(uint16_t destAddress, uint16_t* humidityAlert,
             //
             Parse_getStatusResp(m_buff, humidityAlert, TECsRunning, chillerOnLine, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet humidityAlert %u TECsRunning %u, chillerOnLine %u, seqNumer 0x%02x\n",
                 *humidityAlert, *TECsRunning, *chillerOnLine, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("ERROR: did not get a m_buffer back\n");
+            fprintf(stderr, "ERROR: did not get a m_buffer back\n");
         }
 
     } else
     {
-        printf("ERROR: unable to Make_getStatus\n");
+        fprintf(stderr, "ERROR: unable to Make_getStatus\n");
     }
 
     return(retVal);
@@ -735,17 +725,19 @@ bool controlProtocol::GetHumidity(uint16_t destAddress, float* humidity)
 
             Parse_getHumidityResp(m_buff, humidity, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet humidity %lf, seqNumer 0x%02x\n", *humidity, seqNum);
+            #endif
             
             retVal  = true;
         } else
         {
-            printf("ERROR: did not get a m_buffer back\n");
+            fprintf(stderr, "ERROR: did not get a m_buffer back\n");
         }
 
     } else
     {
-        printf("ERROR: unable to Make_getStatus\n");
+        fprintf(stderr, "ERROR: unable to Make_getStatus\n");
     }
 
     return(retVal);
@@ -830,17 +822,19 @@ bool controlProtocol::SetHumidityThreshold(uint16_t destAddress, uint16_t thresh
             //
             Parse_setHumidityThresholdResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("ERROR: did not get a m_buffer back\n");
+            fprintf(stderr, "ERROR: did not get a m_buffer back\n");
         }
 
     } else
     {
-        printf("ERROR: unable to Make_getStatus\n");
+        fprintf(stderr, "ERROR: unable to Make_getStatus\n");
     }
 
     return(retVal);
@@ -924,17 +918,19 @@ bool controlProtocol::GetHumidityThreshold(uint16_t destAddress, uint16_t* thres
             //
             Parse_getHumidityThresholdResp(m_buff, threshold, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet threshold %d seqNumer 0x%02x\n", *threshold, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("ERROR: did not get a m_buffer back\n");
+            fprintf(stderr, "ERROR: did not get a m_buffer back\n");
         }
 
     } else
     {
-        printf("ERROR: unable to Make_getStatus\n");
+        fprintf(stderr, "ERROR: unable to Make_getStatus\n");
     }
 
     return(retVal);
@@ -1019,17 +1015,19 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             Parse_setTECTemperatureResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("ERROR: did not get a m_buffer back\n");
+            fprintf(stderr, "ERROR: did not get a m_buffer back\n");
         }
 
     } else
     {
-        printf("ERROR: unable to Make_getStatus\n");
+        fprintf(stderr, "ERROR: unable to Make_getStatus\n");
     }
 
     return(retVal);
@@ -1113,17 +1111,19 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             //
             Parse_getTECTemperatureResp(m_buff, result, temperature, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1206,17 +1206,19 @@ bool controlProtocol::GetTECObjTemperature(uint16_t destAddress, uint16_t tec_ad
             //
             Parse_getTECObjTemperatureResp(m_buff, result, temperature, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
+            #endif 
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1301,17 +1303,19 @@ bool controlProtocol::StartChiller(uint16_t destAddress)
             //
             Parse_startChillerMsgResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1396,17 +1400,19 @@ bool controlProtocol::StopChiller(uint16_t destAddress)
             //
             Parse_stopChillerResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1491,17 +1497,19 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
             //
             Parse_setChillerTemperatureResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1585,17 +1593,19 @@ bool controlProtocol::GetChillerTemperature(uint16_t destAddress, float* tempera
             //
             Parse_getChillerTemperatureResp(m_buff, temperature, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1679,17 +1689,19 @@ bool controlProtocol::GetChillerObjTemperature(uint16_t destAddress, float* temp
             //
             Parse_getChillerObjTemperatureResp(m_buff, temperature, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1774,17 +1786,19 @@ bool controlProtocol::GetChillerInfo(uint16_t destAddress, char* info, uint8_t l
             //
             Parse_getChillerInfoResp(m_buff, &result, info, length, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet info \'%s\' seqNumer 0x%02x\n", reinterpret_cast<char*>(info), seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1869,17 +1883,19 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
             //
             Parse_enableTECsResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -1964,17 +1980,19 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
             //
             Parse_disableTECsResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -2060,18 +2078,20 @@ bool controlProtocol::GetTECInfo(uint16_t destAddress, uint16_t tec_address,
             //
             Parse_getTECInfoMsgResp(m_buff, &result, deviceType, hwVersion, fwVersion, serialNum, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d, deviceType 0x%02X, hwVersion 0x%02X, fwVersion 0x%02X, \
                 serialNum 0x%02X seqNumer 0x%02x\n", result, *deviceType, *hwVersion, *fwVersion, *serialNum, seqNum);
+            #endif
             
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -2156,17 +2176,19 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
             //
             Parse_startUpCmdResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
             
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -2251,17 +2273,19 @@ bool controlProtocol::ShutDownCmd(uint16_t destAddress)
             //
             Parse_shutDownCmdResp(m_buff, &result, &seqNum);
 
+            #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
 
             retVal  = true;
         } else
         {
-            printf("%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
         }
 
     } else
     {
-        printf("%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -2415,22 +2439,6 @@ uint16_t controlProtocol::Make_getStatus(uint16_t Address, uint8_t* pBuff)
     msg->header.address.address = htons(Address);
     msg->header.seqNum          = m_seqNum;
     msg->header.msgNum          = getStatusCmd;
-
-/*
-    #ifndef __RUNNING_ON_CONTROLLINO__
-    printf("input bytes: ");
-    for(unsigned int i = 0; i < len_getStatus_t; i++)
-        printf("0x%X ", reinterpret_cast<uint8_t>(pBuff[i]));
-    printf("\n");
-    #else
-    Serial.print("input bytes: ");
-    for(int i = 0; i < len_getStatus_t; i++)
-        Serial.print(reinterpret_cast<uint8_t>(pBuff[i]), HEX);
-    Serial.println("");
-    Serial.flush();
-    #endif
-*/
-
 
     // calculate the CRC
     CRC = calcCRC16(pBuff, len_getStatus_t);
@@ -3022,10 +3030,10 @@ void controlProtocol::Parse_getTECInfoMsgResp(uint8_t* m_buff, uint16_t* result,
 
 
     *result         = ntohs(pResponse->result);
-    *deviceType     = ntohl(pResponse->deviceType);
-    *hwVersion      = ntohl(pResponse->hwVersion);
-    *fwVersion      = ntohl(pResponse->fwVersion);
-    *serialNumber   = ntohl(pResponse->serialNumber);
+    *deviceType     = pResponse->deviceType;
+    *hwVersion      = pResponse->hwVersion;
+    *fwVersion      = pResponse->fwVersion;
+    *serialNumber   = pResponse->serialNumber;
     *pSeqNum        = pResponse->header.seqNum;
 }
 
@@ -3627,7 +3635,6 @@ uint16_t controlProtocol::Make_NACK(uint16_t Address, uint8_t* pBuff, uint16_t S
 //
 bool controlProtocol::verifyMessage(uint16_t buffLength, uint16_t pktCRC, uint16_t expSeqNum, EOP eot)
 {
-    printf("len: 0x%X, CRC 0x%X, seq 0x%X, eop 0x%x\n", buffLength, pktCRC, expSeqNum, eot);
     if( (verifyMessageSeqNum(buffLength, expSeqNum))    // seqNum
         && (verifyMessageCRC(buffLength, pktCRC))       // CRC
         && (verifyMessageLength(eot)) )                 // length
@@ -3676,22 +3683,6 @@ bool controlProtocol::verifyMessageCRC(uint16_t buffLength, uint16_t pktCRC)
 {
     bool            retVal      = true;
     uint16_t        CRC         = calcCRC16(m_buff, buffLength);
-
-
-/*
-    #ifndef __RUNNING_ON_CONTROLLINO__
-    printf("input bytes: ");
-    for(int i = 0; i < buffLength; i++)
-        printf("0x%X ", reinterpret_cast<uint8_t>(m_buff[i]));
-    printf("\n");
-    #else
-    Serial.print("input bytes: ");
-    for(int i = 0; i < buffLength; i++)
-        Serial.print(reinterpret_cast<uint8_t>(m_buff[i]), HEX);
-    Serial.println("");
-    Serial.flush();
-    #endif
-*/
 
 
     if( (CRC != pktCRC) ) 

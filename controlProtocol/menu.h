@@ -1,3 +1,5 @@
+#ifndef __MENU__
+#define __MENU__
 #include <unistd.h>
 #include <iostream>
 #include <string>
@@ -35,15 +37,15 @@ class menuItemBase
     string  m_description;	            // breif description of the command
     uint16_t m_destId;
 
-    menuItemBase(const string& name, const string& description, const uint16_t m_destId = 1)
-        : m_name(name), m_description(description) {};
+    menuItemBase(const string& name, const string& description, const uint16_t destId = 1)
+        : m_name(name), m_description(description), m_destId(destId) {};
     virtual ~menuItemBase() {};
-    virtual void getParameters(void) {};    // function pointer to get parameters for cmd
-    void executeTest(controlProtocol* pCP) {cout.flush(); cout << "bla bla bla\n"; cout.flush(); };
+    virtual void getParameters(void) {};    // prompt for parameters for cmd - derived as needed
+    void executeTest(controlProtocol* pCP) {cout.flush(); cout << "Not implemented.\n"; cout.flush(); };
     virtual void execute(controlProtocol*) = 0;
     friend ostream& operator<<(ostream& str, const menuItemBase& item)
     {
-        str << setw(25) << item.m_name << ":" << item.m_description;
+        str << setw(30) << item.m_name << ":" << item.m_description;
     }
     
     private:
@@ -58,20 +60,17 @@ class menuStartUpCmd : public menuItemBase
 {
     public:
     pStartUpCmd_t m_pStartUpCmd  = &controlProtocol::StartUpCmd;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
 
     menuStartUpCmd()
-        : menuItemBase("StartUpCmd", "start TCUs and chiller")
-    {
-        m_pStartUpCmd = &controlProtocol::StartUpCmd;
-    }
+        :   menuItemBase("startup system", "start TCUs and chiller"),
+            m_pStartUpCmd(&controlProtocol::StartUpCmd) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pStartUpCmd)(m_destId) )
-            cout << "\nStartUpCmd successful" << endl;
+            cout << "\nstartup successful" << endl;
         else
-            cout << "\nStartUpCmd failed" << endl;
+            cout << "\nstartup failed" << endl;
     }
     
     private:
@@ -84,21 +83,18 @@ class menuStartUpCmd : public menuItemBase
 class menuShutDownCmd : public menuItemBase
 {
     public:
-    pShutDownCmd_t m_pShutDownCmd  = &controlProtocol::ShutDownCmd;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pShutDownCmd_t m_pShutDownCmd;
 
     menuShutDownCmd()
-        : menuItemBase("ShutDownCmd", "stop TCUs and chiller*")
-    {
-        m_pShutDownCmd = &controlProtocol::ShutDownCmd;
-    }
+        :   menuItemBase("shutdown system", "stop TCUs, chiller not affected"),
+            m_pShutDownCmd(&controlProtocol::ShutDownCmd) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pShutDownCmd)(m_destId) )
-            cout << "\nShutDownCmd successful" << endl;
+            cout << "\nshutdown successful" << endl;
         else
-            cout << "\nShutDownCmd failed" << endl;
+            cout << "\nshutdown failed" << endl;
     }
     
     private:
@@ -111,25 +107,22 @@ class menuShutDownCmd : public menuItemBase
 class menuGetStatus : public menuItemBase
 {
     public:
-    pGetStatus_t m_pGetStatus  = &controlProtocol::GetStatus;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pGetStatus_t m_pGetStatus;
 
     menuGetStatus()
-        : menuItemBase("GetStatus", "check humidity alert, TECs state, chiller state")
-    {
-        m_pGetStatus = &controlProtocol::GetStatus;
-    }
+        :   menuItemBase("get status", "report humidity alert, TEC states, chiller state"),
+            m_pGetStatus(&controlProtocol::GetStatus) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetStatus)(m_destId, &humidityAlert, &TECsRunning, &chillerRunning) )
         {
-            cout << "\nhumidityAlert: " << humidityAlert <<
-                    "TECsRunning: " << TECsRunning <<
-                    "chillerRunning: " << chillerRunning << endl;
+            cout << "\nhumidity alert: " << humidityAlert <<
+                    " TECs running: " << TECsRunning <<
+                    " chiller running: " << chillerRunning << endl;
         } else
         {
-            cout << "\nunable to GetStatus" << endl;
+            cout << "\nunable to get status" << endl;
         }
     }
 
@@ -147,14 +140,11 @@ class menuGetStatus : public menuItemBase
 class menuGetHumidity : public menuItemBase
 {
     public:
-    pGetHumidity_t m_pGetHumidity  = &controlProtocol::GetHumidity;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pGetHumidity_t m_pGetHumidity;
 
     menuGetHumidity()
-        : menuItemBase("GetHumidity", "get current humidity")
-    {
-        m_pGetHumidity = &controlProtocol::GetHumidity;
-    }
+        :   menuItemBase("get humidity", "get current humidity measurement"),
+            m_pGetHumidity(&controlProtocol::GetHumidity) {}
 
     void execute(controlProtocol* pCP)
     {
@@ -163,7 +153,7 @@ class menuGetHumidity : public menuItemBase
             cout << "\nhumidity: " << humidity << endl;
         } else
         {
-            cout << "\nunable to GetHumidity" << endl;
+            cout << "\nunable to get humidity" << endl;
         }
     }
 
@@ -179,25 +169,22 @@ class menuGetHumidity : public menuItemBase
 class menuSetHumidityThreshold : public menuItemBase
 {
     public:
-    pSetHumidityThreshold_t m_pSetHumidityThreshold  = &controlProtocol::SetHumidityThreshold;
+    pSetHumidityThreshold_t m_pSetHumidityThreshold;
     void getParameters(void)
     {
-        cout << "enter dest address:        "; cin >> m_destId;
-        cout << "enter humidity threshold:  "; cin >> humidityThreshold;
+        cout << "enter humidity threshold: "; cin >> humidityThreshold;
     }
 
     menuSetHumidityThreshold()
-        : menuItemBase("SetHumidityThreshold", "set humidity threshold")
-    {
-        m_pSetHumidityThreshold = &controlProtocol::SetHumidityThreshold;
-    }
+        :   menuItemBase("set humidity threshold", "set running humidity threshold"),
+            m_pSetHumidityThreshold(&controlProtocol::SetHumidityThreshold) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pSetHumidityThreshold)(m_destId, humidityThreshold) )
-            cout << "\nsetHumidityThreshold success" << endl;
+            cout << "\nset humidity threshold successful" << endl;
         else
-            cout << "\nsetHumidityThreshold failed" << endl;
+            cout << "\nset humidity threshold failed" << endl;
     }
 
     float humidityThreshold;
@@ -212,26 +199,20 @@ class menuSetHumidityThreshold : public menuItemBase
 class menuGetHumidityThreshold : public menuItemBase
 {
     public:
-    pGetHumidityThreshold_t m_pGetHumidityThreshold  = &controlProtocol::GetHumidityThreshold;
-    void getParameters(void)
-    {
-        cout << "enter dest address: "; cin >> m_destId;
-    }
+    pGetHumidityThreshold_t m_pGetHumidityThreshold;
 
     menuGetHumidityThreshold()
-        : menuItemBase("GetHumidityThreshold", "get humidity threshold")
-    {
-        m_pGetHumidityThreshold = &controlProtocol::GetHumidityThreshold;
-    }
+        :   menuItemBase("get humidity threshold", "get current humidity threshold"),
+            m_pGetHumidityThreshold(&controlProtocol::GetHumidityThreshold) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetHumidityThreshold)(m_destId, &humidityThreshold) )
         {
-            cout << "\nhumidityThreshold: " << humidityThreshold << endl;
+            cout << "\nhumidity threshold: " << humidityThreshold << endl;
         } else
         {
-            cout << "\nunable to GetHumidityThreshold" << endl;
+            cout << "\nget humidity threshold failed" << endl;
         }
     }
 
@@ -247,26 +228,23 @@ class menuGetHumidityThreshold : public menuItemBase
 class menuSetTECTemperature : public menuItemBase
 {
     public:
-    pSetTECTemperature_t m_pSetTECTemperature  = &controlProtocol::SetTECTemperature;
+    pSetTECTemperature_t m_pSetTECTemperature;
     void getParameters(void)
     {
-        cout << "enter dest address: "; cin >> m_destId;
-        cout << "enter TEC address:  "; cin >> TECAddress;
-        cout << "enter temperature:  "; cin >> temperature;
+        cout << "enter TEC address (i.e. 1, 2, or 3):  "; cin >> TECAddress;
+        cout << "enter temperature (i.e. 5.0 or -5.0): "; cin >> temperature;
     }
 
     menuSetTECTemperature()
-        : menuItemBase("SetTECTemperature", "set a TCU's temperature")
-    {
-        m_pSetTECTemperature = &controlProtocol::SetTECTemperature;
-    }
+        :   menuItemBase("set TEC temperature", "set a TCU temperature"),
+            m_pSetTECTemperature(&controlProtocol::SetTECTemperature) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pSetTECTemperature)(m_destId, TECAddress, temperature) )
-            cout << "\nSetTECTemperature succesful" << endl;
+            cout << "\nset TEC temperature succesful" << endl;
           else
-            cout << "\nSetTECTemperature failed" << endl;
+            cout << "\nset TEC temperature failed" << endl;
     }
 
     uint16_t TECAddress;
@@ -282,29 +260,26 @@ class menuSetTECTemperature : public menuItemBase
 class menuGetTECTemperature : public menuItemBase
 {
     public:
-    pGetTECTemperature_t m_pGetTECTemperature  = &controlProtocol::GetTECTemperature;
+    pGetTECTemperature_t m_pGetTECTemperature;
     void getParameters(void)
     {
-        cout << "enter dest address: "; cin >> m_destId;
         cout << "enter TEC address:  "; cin >> TECAddress;
     }
 
     menuGetTECTemperature()
-        : menuItemBase("GetTECTemperature", "get a TCU's temperature")
-    {
-        m_pGetTECTemperature = &controlProtocol::GetTECTemperature;
-    }
+        :   menuItemBase("get TEC temperature", "get a TCU set-point temperature"),
+            m_pGetTECTemperature(&controlProtocol::GetTECTemperature) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetTECTemperature)(m_destId, TECAddress, &result, &temperature) )
         {
             if( (result) )
-                cout << "\nGetTECTemperature: " << temperature << endl;
+                cout << "\nTEC temperature: " << temperature << endl;
             else
-                cout << "\nGetTECTemperature failed to return temp" << endl;
+                cout << "\nget TEC temperature failed to return temp" << endl;
         } else
-            cout << "\nGetTECTemperature failed" << endl;
+            cout << "\nget TEC temperature failed" << endl;
     }
 
     uint16_t TECAddress;
@@ -324,24 +299,23 @@ class menuGetTECObjTemperature : public menuItemBase
     
     void getParameters(void)
     {
-        cout << "enter dest address: "; cin >> m_destId;
         cout << "enter TEC address:  "; cin >> TECAddress;
     }
 
     menuGetTECObjTemperature()
-        : menuItemBase("GetTECObjTemperature", "get a TCU's object temperature"),
-            m_pGetTECObjTemperature(&controlProtocol::GetTECObjTemperature) { }
+        :   menuItemBase("GetTECObjTemperature", "get a TCU object temperature"),
+            m_pGetTECObjTemperature(&controlProtocol::GetTECObjTemperature) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetTECObjTemperature)(m_destId, TECAddress, &result, &temperature) )
         {
             if( (result) )
-                cout << "\nGetTECObjTemperature: " << temperature << endl;
+                cout << "\nTEC obj temperature: " << temperature << endl;
             else
-                cout << "\nGetTECObjTemperature failed to return temp" << endl;
+                cout << "\nget TEC object temperature failed to return temp" << endl;
         } else
-            cout << "\nGetTECObjTemperature failed" << endl;
+            cout << "\nget TEC object temperature failed" << endl;
     }
 
     uint16_t TECAddress;
@@ -353,26 +327,22 @@ class menuGetTECObjTemperature : public menuItemBase
     menuGetTECObjTemperature& operator=(const menuItemBase&);
 };
 
-
 //    bool    StartChiller(uint16_t);
 class menuStartChiller : public menuItemBase
 {
     public:
-    pStartChiller_t m_pStartChiller  = &controlProtocol::StartChiller;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pStartChiller_t m_pStartChiller;
 
     menuStartChiller()
-        : menuItemBase("StartChiller", "start the chiller")
-    {
-        m_pStartChiller = &controlProtocol::StartChiller;
-    }
+        :   menuItemBase("start chiller", "start the chiller"),
+            m_pStartChiller(controlProtocol::StartChiller) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pStartChiller)(m_destId) )
-            cout << "\nStartChiller successful" << endl;
+            cout << "\nstart chiller successful" << endl;
         else
-            cout << "\nStartChiller failed" << endl;
+            cout << "\nstart chiller failed" << endl;
     }
     
     private:
@@ -386,20 +356,17 @@ class menuStopChiller : public menuItemBase
 {
     public:
     pStopChiller_t m_pStopChiller  = &controlProtocol::StopChiller;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
 
     menuStopChiller()
-        : menuItemBase("StopChiller", "stop the chiller")
-    {
-        m_pStopChiller = &controlProtocol::StopChiller;
-    }
+        :   menuItemBase("stop chiller", "stop the chiller, also stops TECs"),
+            m_pStopChiller(&controlProtocol::StopChiller) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pStopChiller)(m_destId) )
-            cout << "\nStopChiller successful" << endl;
+            cout << "\nstop chiller successful" << endl;
         else
-            cout << "\nStopChiller failed" << endl;
+            cout << "\nstop chiller failed" << endl;
     }
     
     private:
@@ -412,21 +379,18 @@ class menuStopChiller : public menuItemBase
 class menuGetChillerInfo : public menuItemBase
 {
     public:
-    pGetChillerInfo_t m_pGetChillerInfo  = &controlProtocol::GetChillerInfo;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pGetChillerInfo_t m_pGetChillerInfo;
 
     menuGetChillerInfo()
-        : menuItemBase("GetChillerInfo", "get the chiller name")
-    {
-        m_pGetChillerInfo = &controlProtocol::GetChillerInfo;
-    }
+        :   menuItemBase("get chiller info", "get the chiller's name"),
+            m_pGetChillerInfo(&controlProtocol::GetChillerInfo) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetChillerInfo)(m_destId, chillerInfo, 64) )
-            cout << "\nGetChillerInfo: " << chillerInfo << endl;
+            cout << "\nget chiller info: " << chillerInfo << endl;
         else
-            cout << "\nGetChillerInfo failed" << endl;
+            cout << "\nget chiller info failed" << endl;
     }
 
     char chillerInfo[64];
@@ -444,22 +408,19 @@ class menuSetChillerTemperature : public menuItemBase
     pSetChillerTemperature_t m_pSetChillerTemperature  = &controlProtocol::SetChillerTemperature;
     void getParameters(void)
     {
-        cout << "enter dest address: "; cin >> m_destId;
-        cout << "enter temperature:  "; cin >> temperature;
+        cout << "enter temperature (i.e. 24.0 or -10.5): "; cin >> temperature;
     }
 
     menuSetChillerTemperature()
-        : menuItemBase("SetChillerTemperature", "set the chiller set point temp")
-    {
-        m_pSetChillerTemperature = &controlProtocol::SetChillerTemperature;
-    }
+        :   menuItemBase("set chiller temperature", "set the chiller set-point temp"),
+            m_pSetChillerTemperature(&controlProtocol::SetChillerTemperature) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pSetChillerTemperature)(m_destId, temperature) )
-            cout << "\nSetChillerTemperature successful" << endl;
+            cout << "\nset chiller temperature successful" << endl;
         else
-            cout << "\nSetChillerTemperature failed" << endl;
+            cout << "\nset chiller temperature failed" << endl;
     }
 
     float   temperature;
@@ -474,24 +435,18 @@ class menuSetChillerTemperature : public menuItemBase
 class menuGetChillerTemperature : public menuItemBase
 {
     public:
-    pGetChillerTemperature_t m_pGetChillerTemperature  = &controlProtocol::GetChillerTemperature;
-    void getParameters(void)
-    {
-        cout << "enter dest address: "; cin >> m_destId;
-    }
+    pGetChillerTemperature_t m_pGetChillerTemperature;
 
     menuGetChillerTemperature()
-        : menuItemBase("GetChillerTemperature", "get the chiller running temp")
-    {
-        m_pGetChillerTemperature = &controlProtocol::GetChillerTemperature;
-    }
+        :   menuItemBase("get chiller temperature", "get the chiller set-point temp"),
+            m_pGetChillerTemperature(&controlProtocol::GetChillerTemperature) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetChillerTemperature)(m_destId, &temperature) )
-            cout << "\nGetChillerTemperature: " << temperature << endl;
+            cout << "\nchiller set-point temperature: " << temperature << endl;
         else
-            cout << "\nGetChillerTemperature failed" << endl;
+            cout << "\nget chiller temperature failed" << endl;
     }
 
     float   temperature;
@@ -507,21 +462,16 @@ class menuGetChillerObjTemperature : public menuItemBase
     public:
     pGetChillerObjTemperature_t m_pGetChillerObjTemperature;
     
-    void getParameters(void)
-    {
-        cout << "enter dest address: "; cin >> m_destId;
-    }
-
     menuGetChillerObjTemperature()
-        : menuItemBase("GetChillerObjTemperature", "get the chiller intgernal temp"),
+        :   menuItemBase("get chiller obj temperature", "get the chiller internal temp"),
             m_pGetChillerObjTemperature(&controlProtocol::GetChillerObjTemperature) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetChillerObjTemperature)(m_destId, &temperature) )
-            cout << "\nGetChillerObjTemperature: " << temperature << endl;
+            cout << "\nchiller internal temperature: " << temperature << endl;
         else
-            cout << "\nGetChillerObjTemperature failed" << endl;
+            cout << "\nget chiller obj temperature failed" << endl;
     }
 
     float   temperature;
@@ -536,21 +486,18 @@ class menuGetChillerObjTemperature : public menuItemBase
 class menuEnableTECs : public menuItemBase
 {
     public:
-    pEnableTECs_t m_pEnableTECs  = &controlProtocol::EnableTECs;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pEnableTECs_t m_pEnableTECs;
 
     menuEnableTECs()
-        : menuItemBase("EnableTECs", "start all TECs")
-    {
-        m_pEnableTECs = &controlProtocol::EnableTECs;
-    }
+        :   menuItemBase("start TECs", "start all TECs"),
+            m_pEnableTECs(&controlProtocol::EnableTECs) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pEnableTECs)(m_destId) )
-            cout << "\nEnableTECs successful" << endl;
+            cout << "\nstart TECs successful" << endl;
         else
-            cout << "\nEnableTECs failed" << endl;
+            cout << "\nstart TECs failed" << endl;
     }
     
     private:
@@ -563,21 +510,18 @@ class menuEnableTECs : public menuItemBase
 class menuDisableTECs : public menuItemBase
 {
     public:
-    pDisableTECs_t m_pDisableTECs  = &controlProtocol::DisableTECs;
-    void getParameters(void) { cout << "enter dest address: "; cin >> m_destId; }
+    pDisableTECs_t m_pDisableTECs;
 
     menuDisableTECs()
-        : menuItemBase("DisableTECs", "stop all TECs")
-    {
-        m_pDisableTECs = &controlProtocol::DisableTECs;
-    }
+        :   menuItemBase("stop TECs", "stop all TECs"),
+            m_pDisableTECs(&controlProtocol::DisableTECs) {}
 
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pDisableTECs)(m_destId) )
-            cout << "\nDisableTECs successful" << endl;
+            cout << "\nstop TECs successful" << endl;
         else
-            cout << "\nDisableTECs failed" << endl;
+            cout << "\nstop TECs failed" << endl;
     }
     
     private:
@@ -590,18 +534,15 @@ class menuDisableTECs : public menuItemBase
 class menuGetTECInfo : public menuItemBase
 {
     public:
-    pGetTECInfo_t m_pGetTECInfo  = &controlProtocol::GetTECInfo;
+    pGetTECInfo_t m_pGetTECInfo;
     void getParameters(void)
     {
-        cout << "enter dest address: "; cin >> m_destId;
         cout << "enter TEC address:  "; cin >> tec_address;
     }
 
     menuGetTECInfo()
-        : menuItemBase("GetTECInfo", "get a TEC's h/w & s/w version, model, and serial number'")
-    {
-        m_pGetTECInfo = &controlProtocol::GetTECInfo;
-    }
+        :   menuItemBase("get TEC info", "get a TEC's h/w & s/w version, model, and serial number"),
+            m_pGetTECInfo(&controlProtocol::GetTECInfo) {}
 
     void execute(controlProtocol* pCP)
     {
@@ -614,7 +555,7 @@ class menuGetTECInfo : public menuItemBase
                     "serialNum: " << serialNum << endl;
         } else
         {
-            cout << "\nunable to GetTECInfo" << endl;
+            cout << "\nget TEC info failed" << endl;
         }
     }
 
@@ -628,4 +569,5 @@ class menuGetTECInfo : public menuItemBase
     menuGetTECInfo(const menuItemBase&);
     menuGetTECInfo& operator=(const menuItemBase&);
 };
+#endif
 
