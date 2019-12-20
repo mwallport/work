@@ -629,6 +629,9 @@ bool huber::sendGeneralCommand()
 //
 bool huber::GetAllChillerInfo()
 {
+    #ifdef __DOING_PP_COMMANDS__
+    return(GetAllChillerInfo_PP());
+    #else
     bool    retVal  = true;
 
 
@@ -658,6 +661,7 @@ bool huber::GetAllChillerInfo()
     }
 
     return(retVal);
+    #endif
 }
 
 
@@ -666,6 +670,10 @@ bool huber::GetAllChillerInfo()
 //
 bool huber::getChillerStatus()
 {
+    #ifdef __DOING_PP_COMMANDS__
+    return(GetAllChillerInfo_PP());
+    #else
+
     bool    retVal  = false;
     uint8_t count   = 0;
 
@@ -707,6 +715,7 @@ bool huber::getChillerStatus()
     }
 
     return(retVal);
+    #endif
 }
 
 
@@ -716,6 +725,10 @@ bool huber::getChillerStatus()
 //
 bool huber::StartChiller()
 {
+    #ifdef __DOING_PP_COMMANDS__
+    return(StartChiller_PP(3500));
+    #else
+
     bool    retVal  = false;
     uint8_t count   = 0;
 
@@ -812,6 +825,7 @@ bool huber::StartChiller()
     }
 
     return(retVal);
+    #endif
 }
 
 
@@ -856,6 +870,10 @@ bool huber::ChillerRunning()
 
 bool huber::StopChiller()
 {
+    #ifdef __DOING_PP_COMMANDS__
+    return(StopChiller_PP(3500));
+    #else
+
     bool    retVal  = false;
     uint8_t count   = 0;
 
@@ -908,6 +926,7 @@ bool huber::StopChiller()
     }
 
     return(retVal);
+    #endif
 }
 
 
@@ -922,6 +941,10 @@ bool huber::ChillerPresent()
 
 bool huber::SetSetPoint(const char* pSetPoint)
 {
+    #ifdef __DOING_PP_COMMANDS__
+    return(SetSetPoint_PP(pSetPoint, 3500));
+    #else
+
     bool        retVal  = false;
     uint8_t     count   = 0;
     float       setTemp;
@@ -1014,6 +1037,7 @@ bool huber::SetSetPoint(const char* pSetPoint)
     #endif
     }
     return(retVal);
+    #endif
 }
 
 
@@ -1043,35 +1067,43 @@ char huber::GetTempCtrlMode() const
 
 float huber::GetSetPointFloat() const
 {
-    float retVal;
-    int16_t converted;
 
 
     //
     // i find sptintf support not great on uC, going
     // with atof for now
     //
+    #ifdef __DOING_PP_COMMANDS__
+    float retVal;
+    retVal = atof(huberData.setPointTemp);
+    return(retVal);
+    #else
+    float retVal;
+    int16_t converted;
     sscanf(reinterpret_cast<const char*>(huberData.setPointTemp),"%04x", &converted);
     retVal = (float)converted / (float)100.00;
-
     return(retVal);
+    #endif
 }
 
 
 float huber::GetInternalTempFloat() const
 {
-    float retVal;
-    int16_t converted;
-
-
     //
-    // i find sptintf support not great on uC, going
+    // I find sptintf support not great on uC, going
     // with atof for now
     //
+    #ifdef __DOING_PP_COMMANDS__
+    float retVal;
+    retVal = atof(huberData.internalTemp);
+    return(retVal);
+    #else
+    float retVal;
+    int16_t converted;
     sscanf(reinterpret_cast<const char*>(huberData.internalTemp),"%04x", &converted);
     retVal = (float)converted / (float)100.00;
-
     return(retVal);
+    #endif
 }
 
 
@@ -1100,7 +1132,11 @@ const char* huber::GetAlarms() const
 
 const char* huber::GetSlaveName() const
 {
+    #ifdef __DOING_PP_COMMANDS__
+    return("not supported");
+    #else
     return(slaveName);
+    #endif
 }
 
 
@@ -1284,4 +1320,749 @@ void huber::ClearInputBuff()
     while( (Serial2.available()) )
         Serial2.read();
 }
+
+
+#ifdef __DOING_PP_COMMANDS__
+bool huber::StopChiller_PP(uint32_t TimeoutMs)
+{
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;     // TODO: for now dont' find a defined start char
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = 'C';
+    const uint8_t ETX       = '\n';
+    unsigned long startTime = millis();
+
+
+
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    strcpy(reinterpret_cast<void*>(Buff), "CA@ 00000\r\n");
+
+    if( (TxCommand()) )
+    {
+        //
+        // want this string back: "CA +00000\r\n"
+        //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    
+        // try to read a packet for a total of TimeoutMs milliseconds
+        while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
+        {
+            if( ((millis() - startTime) > TimeoutMs) )
+            {
+                timedOut = true;
+            } else
+            {
+                if( (Serial2.available()) )
+                {
+                    Buff[bytes_read] = Serial2.read();
+    
+                    if( (!gotSTX) )
+                    {
+                        if( (STX == Buff[bytes_read]) )
+                        {
+                            // TODO: restart startTime here, give more time to get the packet?
+                            gotSTX = true;
+                            bytes_read += 1;
+                        } // else don't increment bytes_read effectively discarding this byte
+                    } else
+                    {
+                        if( (!gotETX) )
+                        {
+                            if( (ETX == Buff[bytes_read]) )
+                            {
+                                done        = true;
+                            }
+    
+                            // this is a byte in the body of the frame
+                            bytes_read += 1;
+                        }
+                    }
+                } else
+                {
+                    delay(100);
+                }
+            }
+        }
+
+        // always null terminate just in case we want to dump out for debug
+        Buff[bytes_read] = 0;
+
+        if( (0 == strcmp(Buff, "CA +00000\r\n")) )
+        {
+            huberData.tempCtrlMode[0] = 'O';
+            retVal = true;
+        }
+    #ifdef __DEBUG_HUBER_ERROR__
+    } else
+    {
+        Serial.println("StopChiller_PP failed send command");
+    #endif
+    }
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
+    Serial.flush();
+    Serial.print(bytes_read);
+    Serial.flush();
+    Serial.println(" bytes");
+    Serial.flush();
+    Serial.println(Buff);
+    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("StopChiller_PP found bad formatted packet");
+        Serial.flush();
+    }
+    #endif
+
+
+    #ifdef __DEBUG_HUBER__
+    if( (retVal) )
+        Serial.println("StopChiller_PP successful");
+    else
+        Serial.println("StopChiller_PP failed");
+    Serial.flush();
+    #endif
+
+    return(retVal);
+}
+
+
+bool huber::StartChiller_PP(uint32_t TimeoutMs)
+{
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = 'C';
+    const uint8_t ETX       = '\n';
+    unsigned long startTime = millis();
+
+
+
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    strcpy(reinterpret_cast<void*>(Buff), "CA@ 00001\r\n");
+
+    if( (TxCommand()) )
+    {
+        //
+        // want this string back: "CA +00001\r\n"
+        //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    
+        // try to read a packet for a total of TimeoutMs milliseconds
+        while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
+        {
+            if( ((millis() - startTime) > TimeoutMs) )
+            {
+                timedOut = true;
+            } else
+            {
+                if( (Serial2.available()) )
+                {
+                    Buff[bytes_read] = Serial2.read();
+    
+                    if( (!gotSTX) )
+                    {
+                        if( (STX == Buff[bytes_read]) )
+                        {
+                            // TODO: restart startTime here, give more time to get the packet?
+                            gotSTX = true;
+                            bytes_read += 1;
+                        } // else don't increment bytes_read effectively discarding this byte
+                    } else
+                    {
+                        if( (!gotETX) )
+                        {
+                            if( (ETX == Buff[bytes_read]) )
+                            {
+                                done        = true;
+                            }
+    
+                            // this is a byte in the body of the frame
+                            bytes_read += 1;
+                        }
+                    }
+                } else
+                {
+                    delay(100);
+                }
+            }
+        }
+
+        // always null terminate just in case we want to dump out for debug
+        Buff[bytes_read] = 0;
+
+        if( (0 == strcmp(Buff, "CA +00001\r\n")) )
+        {
+            huberData.tempCtrlMode[0] = 'I';
+            retVal = true;
+        }
+    #ifdef __DEBUG_HUBER_ERROR__
+    } else
+    {
+        Serial.println("StartChiller_PP failed send command");
+    #endif
+    }
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
+    Serial.flush();
+    Serial.print(bytes_read);
+    Serial.flush();
+    Serial.println(" bytes");
+    Serial.flush();
+    Serial.println(Buff);
+    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("StartChiller_PP found bad formatted packet");
+        Serial.flush();
+    }
+    #endif
+
+    #ifdef __DEBUG_HUBER__
+    if( (retVal) )
+        Serial.println("StartChiller_PP successful");
+    else
+        Serial.println("StartChiller_PP failed");
+    Serial.flush();
+    #endif
+
+    return(retVal);
+}
+
+
+bool huber::SetSetPoint_PP(const char* pSetPoint, uint32_t TimeoutMs)
+{
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = 'S';
+    const uint8_t ETX       = '\n';
+    unsigned long startTime = millis();
+    float ftemp;
+    int itemp;
+
+
+
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    strcpy(Buff, "SP@ ");
+
+    //
+    // (+/-) xxx.xx  => SP@ (+/-)xxxxx\r\n
+    //
+    ftemp = atof(pSetPoint);
+    itemp = (ftemp * 100.00);
+    if(itemp < 0)
+    {
+        Buff[4] = '-';
+        itemp *= -1;
+    } else
+        Buff[4] = '+';
+        
+    sprintf(&Buff[5], "%05d\r\n", itemp);
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print("sending: "); Serial.println(Buff);
+    #endif
+
+    // strcpy int Bkup
+    strcpy(Bkup, Buff);
+
+    if( (TxCommand()) )
+    {
+        //
+        // want this string back: "SP +00001\r\n"
+        //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    
+        // try to read a packet for a total of TimeoutMs milliseconds
+        while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
+        {
+            if( ((millis() - startTime) > TimeoutMs) )
+            {
+                timedOut = true;
+            } else
+            {
+                if( (Serial2.available()) )
+                {
+                    Buff[bytes_read] = Serial2.read();
+    
+                    if( (!gotSTX) )
+                    {
+                        if( (STX == Buff[bytes_read]) )
+                        {
+                            // TODO: restart startTime here, give more time to get the packet?
+                            gotSTX = true;
+                            bytes_read += 1;
+                        } // else don't increment bytes_read effectively discarding this byte
+                    } else
+                    {
+                        if( (!gotETX) )
+                        {
+                            if( (ETX == Buff[bytes_read]) )
+                            {
+                                done        = true;
+                            }
+    
+                            // this is a byte in the body of the frame
+                            bytes_read += 1;
+                        }
+                    }
+                } else
+                {
+                    delay(100);
+                }
+            }
+        }
+
+        // always null terminate just in case we want to dump out for debug
+        Buff[bytes_read] = 0;
+
+        if( (0 == strcmp(&Buff[3], &Bkup[4])) )
+        {
+            sscanf(&Buff[3], "%d", &itemp);
+            ftemp = itemp / 100.00;
+            memset(reinterpret_cast<void*>(huberData.setPointTemp), '\0', MAX_SET_POINT_LENGTH + 1);
+            dtostrf(ftemp, -(MAX_SET_POINT_LENGTH), 2, huberData.setPointTemp);
+            retVal = true;
+        }
+    #ifdef __DEBUG_HUBER_ERROR__
+    } else
+    {
+        Serial.println("SetSetPoint_PP failed send command");
+    #endif
+    }
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
+    Serial.flush();
+    Serial.print(bytes_read);
+    Serial.flush();
+    Serial.println(" bytes");
+    Serial.flush();
+    Serial.println(Buff);
+    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("SetSetPoint_PP found bad formatted packet");
+        Serial.flush();
+    }
+    #endif
+
+    #ifdef __DEBUG_HUBER__
+    if( (retVal) )
+        Serial.println("SetSetPoint_PP successful");
+    else
+        Serial.println("SetSetPoint_PP failed");
+    Serial.flush();
+    #endif
+
+    return(retVal);
+}
+
+
+bool huber::GetAllChillerInfo_PP()
+{
+    bool retVal = true;
+
+
+    if(!DoReadSetPoint_PP(3500))
+        retVal = false;
+
+    if(!DoReadInternalActuatlValue_PP(3500))
+        retVal = false;
+
+    if(!DoGetTemperatureControlMode_PP(3500))
+        retVal = false;
+
+    return(retVal);
+}
+
+
+bool huber::DoReadSetPoint_PP(uint32_t TimeoutMs)
+{
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = 'S';
+    const uint8_t ETX       = '\n';
+    unsigned long startTime = millis();
+    float ftemp;
+    int itemp;
+
+
+
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    strcpy(reinterpret_cast<void*>(Buff), "SP?\r\n");
+
+    if( (TxCommand()) )
+    {
+        //
+        // want this string back: "SP [+|-]XXXXX\r\n"
+        //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    
+        // try to read a packet for a total of TimeoutMs milliseconds
+        while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
+        {
+            if( ((millis() - startTime) > TimeoutMs) )
+            {
+                timedOut = true;
+            } else
+            {
+                if( (Serial2.available()) )
+                {
+                    Buff[bytes_read] = Serial2.read();
+    
+                    if( (!gotSTX) )
+                    {
+                        if( (STX == Buff[bytes_read]) )
+                        {
+                            // TODO: restart startTime here, give more time to get the packet?
+                            gotSTX = true;
+                            bytes_read += 1;
+                        } // else don't increment bytes_read effectively discarding this byte
+                    } else
+                    {
+                        if( (!gotETX) )
+                        {
+                            if( (ETX == Buff[bytes_read]) )
+                            {
+                                done        = true;
+                            }
+    
+                            // this is a byte in the body of the frame
+                            bytes_read += 1;
+                        }
+                    }
+                } else
+                {
+                    delay(100);
+                }
+            }
+        }
+
+        // always null terminate just in case we want to dump out for debug
+        Buff[bytes_read] = 0;
+
+        if( (0 == strncmp(Buff, "SP ", 3)) )
+        {
+            sscanf(&Buff[3], "%d", &itemp);
+            ftemp = itemp / 100.00;
+            memset(reinterpret_cast<void*>(huberData.setPointTemp), '\0', MAX_SET_POINT_LENGTH + 1);
+            dtostrf(ftemp, -(MAX_SET_POINT_LENGTH), 2, huberData.setPointTemp);
+            retVal = true;
+        }
+    #ifdef __DEBUG_HUBER_ERROR__
+    } else
+    {
+        Serial.println("DoReadSetPoint_PP failed send command");
+    #endif
+    }
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
+    Serial.flush();
+    Serial.print(bytes_read); Serial.flush();
+    Serial.println(" bytes");
+    Serial.flush();
+    Serial.println(Buff);
+    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("DoReadSetPoint found bad formatted packet");
+        Serial.flush();
+    }
+    #endif
+
+    #ifdef __DEBUG_HUBER__
+    if( (retVal) )
+    {
+        Serial.print("DoReadSetPoint_PP successful, found: ");
+        Serial.println(huberData.setPointTemp);
+    } else
+        Serial.println("DoReadSetPoint_PP failed");
+
+    Serial.flush();
+    #endif
+
+    return(retVal);
+
+}
+
+bool huber::DoReadInternalActuatlValue_PP(uint32_t TimeoutMs)
+{
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = 'T';
+    const uint8_t ETX       = '\n';
+    unsigned long startTime = millis();
+    float ftemp;
+    int itemp;
+
+
+
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    strcpy(reinterpret_cast<void*>(Buff), "TI?\r\n");
+
+    if( (TxCommand()) )
+    {
+        //
+        // want this string back: "TI [+|-]XXXXX\r\n"
+        //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    
+        // try to read a packet for a total of TimeoutMs milliseconds
+        while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
+        {
+            if( ((millis() - startTime) > TimeoutMs) )
+            {
+                timedOut = true;
+            } else
+            {
+                if( (Serial2.available()) )
+                {
+                    Buff[bytes_read] = Serial2.read();
+    
+                    if( (!gotSTX) )
+                    {
+                        if( (STX == Buff[bytes_read]) )
+                        {
+                            // TODO: restart startTime here, give more time to get the packet?
+                            gotSTX = true;
+                            bytes_read += 1;
+                        } // else don't increment bytes_read effectively discarding this byte
+                    } else
+                    {
+                        if( (!gotETX) )
+                        {
+                            if( (ETX == Buff[bytes_read]) )
+                            {
+                                done        = true;
+                            }
+    
+                            // this is a byte in the body of the frame
+                            bytes_read += 1;
+                        }
+                    }
+                } else
+                {
+                    delay(100);
+                }
+            }
+        }
+
+        // always null terminate just in case we want to dump out for debug
+        Buff[bytes_read] = 0;
+
+        if( (0 == strncmp(Buff, "TI ", 3)) )
+        {
+            sscanf(&Buff[3], "%d", &itemp);
+            ftemp = itemp / 100.00;
+            memset(reinterpret_cast<void*>(huberData.internalTemp), '\0', MAX_INTERNAL_TEMP_LENGTH + 1);
+            dtostrf(ftemp, -(MAX_INTERNAL_TEMP_LENGTH), 2, &huberData.internalTemp[0]);
+            retVal = true;
+        }
+    #ifdef __DEBUG_HUBER_ERROR__
+    } else
+    {
+        Serial.println("DoReadInternalTemp_PP failed send command");
+    #endif
+    }
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
+    Serial.flush();
+    Serial.print(bytes_read);
+    Serial.flush();
+    Serial.println(" bytes");
+    Serial.flush();
+    Serial.println(Buff);
+    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("DoReadInternalTemp_PP found bad formatted packet");
+        Serial.flush();
+    }
+    #endif
+
+    #ifdef __DEBUG_HUBER__
+    if( (retVal) )
+    {
+        Serial.print("DoReadInternalActualValue_PP successful, found: ");
+        Serial.println(huberData.internalTemp);
+    } else
+        Serial.println("DoReadInternalActualValu_PP failed");
+
+    Serial.flush();
+    #endif
+
+    return(retVal);
+}
+
+bool huber::DoGetTemperatureControlMode_PP(uint32_t TimeoutMs)
+{
+    bool retVal             = false;
+    bool done               = false;
+    bool gotSTX             = false;
+    bool gotETX             = false;
+    bool timedOut           = false;
+    int32_t bytes_read      = 0;
+    const uint8_t STX       = 'C';
+    const uint8_t ETX       = '\n';
+    unsigned long startTime = millis();
+
+
+
+    memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    strcpy(reinterpret_cast<void*>(Buff), "CA?\r\n");
+
+    if( (TxCommand()) )
+    {
+        //
+        // want this string back: "CA [+|-]00001\r\n"
+        //
+        memset(reinterpret_cast<void*>(Buff), '\0', MAX_BUFF_LENGTH + 1);
+    
+        // try to read a packet for a total of TimeoutMs milliseconds
+        while( (!done) && (!timedOut) && (bytes_read < MAX_BUFF_LENGTH) )
+        {
+            if( ((millis() - startTime) > TimeoutMs) )
+            {
+                timedOut = true;
+            } else
+            {
+                if( (Serial2.available()) )
+                {
+                    Buff[bytes_read] = Serial2.read();
+    
+                    if( (!gotSTX) )
+                    {
+                        if( (STX == Buff[bytes_read]) )
+                        {
+                            // TODO: restart startTime here, give more time to get the packet?
+                            gotSTX = true;
+                            bytes_read += 1;
+                        } // else don't increment bytes_read effectively discarding this byte
+                    } else
+                    {
+                        if( (!gotETX) )
+                        {
+                            if( (ETX == Buff[bytes_read]) )
+                            {
+                                done        = true;
+                            }
+    
+                            // this is a byte in the body of the frame
+                            bytes_read += 1;
+                        }
+                    }
+                } else
+                {
+                    delay(100);
+                }
+            }
+        }
+
+        // always null terminate just in case we want to dump out for debug
+        Buff[bytes_read] = 0;
+
+        if( (0 == strncmp(Buff, "CA +", 4)) )
+        {
+            if( (0 == strcmp(&Buff[3], "+00000\r\n")) )
+                huberData.tempCtrlMode[0] = 'O';
+            else
+                huberData.tempCtrlMode[0] = 'I';
+
+            retVal= true;
+        }
+    #ifdef __DEBUG_HUBER_ERROR__
+    } else
+    {
+        Serial.println("DoReadInternalTemp_PP failed send command");
+    #endif
+    }
+
+    // debug stuff
+    #ifdef __DEBUG_PKT_RX__
+    Serial.print(__PRETTY_FUNCTION__);
+    Serial.flush();
+    Serial.print(" received ");
+    Serial.flush();
+    Serial.print(bytes_read);
+    Serial.flush();
+    Serial.println(" bytes");
+    Serial.flush();
+    Serial.println(Buff);
+    Serial.flush();
+    #endif
+
+    #ifdef __DEBUG_HUBER_ERROR__
+    if( !(retVal) )
+    {
+        Serial.println("DoGetInternalTemperatrueContorlMode_PP found bad formatted packet");
+        Serial.flush();
+    }
+    #endif
+
+    #ifdef __DEBUG_HUBER__
+    if( (retVal) )
+        Serial.println("DoGetInternalTemperatrueContorlMode_PP successful");
+    else
+        Serial.println("DoGetInternalTemperatrueContorlMode_PP failed");
+    Serial.flush();
+    #endif
+
+    return(retVal);
+}
+
+#endif
 

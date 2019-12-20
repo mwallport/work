@@ -9,18 +9,10 @@
 
 
 // this is for important, error condition debug output
-//#define __DEBUG_VIA_SERIAL__
+#define __DEBUG_VIA_SERIAL__
 
 // this is for frivilous debug output
 //#define __DEBUG2_VIA_SERIAL__
-
-// not sure if we want to stop the chiller when the 
-// on - off button is pressed
-// and not totally sure if want to start the chiller upon
-// system boot
-// this flag 
-#define __START_CHILLER_ON_BOOTUP__
-#define __OK_TO_STOP_CHILLER__
 
 //
 // constants - using #define - have limited space on Arduino
@@ -242,6 +234,6 @@ const int NO_FAULT_LED  = 6;
 // splash screen conents - shown during boot while the system is coming on-line
 //
 const char deftDevise[16] = "deftDevise     ";
-const char buildInfo[16]  = "191218         ";
+const char buildInfo[16]  = "191219         ";
 
 #endif

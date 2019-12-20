@@ -13,6 +13,7 @@
 //#define __DEBUG_HUBER2__
 //#define __DEBUG_HUBER__
 //#define __DEBUG_HUBER_ERROR__
+#define __DOING_PP_COMMANDS__
 
 const uint8_t MAX_COMMAND_RETRY             = 2;
 const uint8_t MAX_BUFF_LENGTH               = 32; 
@@ -32,12 +33,18 @@ const uint8_t MAX_TEMP_CTRL_MODE_LENGTH     = 1;
 const uint8_t ALARM_STATUS_INDEX            = 8;
 const uint8_t MAX_ALARM_STATUS_LENGTH       = 1;
 const uint8_t SETPOINT_STATUS_INDEX         = 9;
-const uint8_t MAX_SET_POINT_LENGTH          = 4;
 const uint8_t INTERNAL_TEMP_INDEX           = 13;
-const uint8_t MAX_INTERNAL_TEMP_LENGTH      = 4;
 const uint8_t EXTERNAL_TEMP_INDEX           = 17;
-const uint8_t MAX_EXTERNAL_TEMP_LENGTH      = 4;
 
+#ifdef __DOING_PP_COMMANDS__
+const uint8_t MAX_SET_POINT_LENGTH          = 8;
+const uint8_t MAX_INTERNAL_TEMP_LENGTH      = 8;
+const uint8_t MAX_EXTERNAL_TEMP_LENGTH      = 8;
+#else
+const uint8_t MAX_SET_POINT_LENGTH          = 4;
+const uint8_t MAX_INTERNAL_TEMP_LENGTH      = 4;
+const uint8_t MAX_EXTERNAL_TEMP_LENGTH      = 4;
+#endif
 
 //
 // data structure to store results of calls to huber's 'General' command
@@ -85,6 +92,15 @@ class huber
     const char* GetSlaveName() const;
     char GetTempCtrlMode() const;
 
+    #ifdef __DOING_PP_COMMANDS__
+    bool StopChiller_PP(uint32_t);
+    bool StartChiller_PP(uint32_t);
+    bool SetSetPoint_PP(const char*, uint32_t);
+    bool GetAllChillerInfo_PP();
+    bool DoReadSetPoint_PP(uint32_t);
+    bool DoReadInternalActuatlValue_PP(uint32_t);
+    bool DoGetTemperatureControlMode_PP(uint32_t);
+    #endif
 
     protected:
     huber();

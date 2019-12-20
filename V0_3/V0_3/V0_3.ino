@@ -36,9 +36,11 @@ void setup(void)
     Serial.println(" -----------------------------------------------------------"); Serial.flush();
     #endif
 
-    #ifdef __START_CHILLER_ON_BOOTUP__
+
+    //
+    // always start the chiller
+    //
     startChiller();
-    #endif
     
     //
     // get all statuses at startup
@@ -253,7 +255,7 @@ void getStatus(void)
 
             // stop the chiller, stop the TECs
             if( (SHUTDOWN != sysStates.sysStatus) )
-                shutDownSys();
+                shutDownSys(false);
         } else
         {
             enableButtonISR();
@@ -273,7 +275,7 @@ void getStatus(void)
 //
 // shut everything down, update the system and LCD status
 //
-bool shutDownSys(void)
+bool shutDownSys(bool stopChillerCmd)
 {
     bool    retVal  = true;
 
@@ -288,23 +290,23 @@ bool shutDownSys(void)
     //
     lcd_shuttingDown();
 
-    #ifdef __OK_TO_STOP_CHILLER__
     //
-    // turn off the chiller
+    // turn off the chiller only if there is a humidity failure or stopChillerCmd is true
     //
-    for(uint8_t i = 0; i < MAX_SHUTDOWN_ATTEMPTS; i++)
+    if( (stopChillerCmd) || (humidityHigh()) )
     {
-        if( !(chiller.StopChiller()) )
-            retVal  = false;
-        else
+        for(uint8_t i = 0; i < MAX_SHUTDOWN_ATTEMPTS; i++)
         {
-            retVal  = true;
-            break;
+            if( !(chiller.StopChiller()) )
+                retVal  = false;
+            else
+            {
+                retVal  = true;
+                break;
+            }
         }
-    }
-    #endif
-
-
+    } 
+            
     //
     // turn off the TECs - not checking return value here as we are dying anyway ??
     //
@@ -576,7 +578,7 @@ void handleMsgs(void)
                 // adjust the button LED
                 //
                 digitalWrite(BUTTON_LED, LOW);
-                shutDownSys();
+                shutDownSys(false);
             }
         }
     } else
@@ -1158,7 +1160,7 @@ void handleShutDownCmd(void)
             //
             // call shutDown()
             //
-            if( (shutDownSys()) )
+            if( (shutDownSys(false)) )
             {
                 result  = 1;
                 
@@ -1811,8 +1813,7 @@ void handleStopChiller(void)
             // stop chiller is effectively a shutDownSys() as the TECs cannot
             // be running w/o the chiller running
             //
-            #ifdef __OK_TO_STOP_CHILLER__
-            if(shutDownSys())
+            if(shutDownSys(true))
             {
                 result  = 1;
             } else
@@ -1822,7 +1823,6 @@ void handleStopChiller(void)
                 Serial.flush();
                 #endif
             }
-            #endif
 
             respLength = cp.Make_stopChillerResp(cp.m_peerAddress, cp.m_buff,
                 result, pstopChiller->header.seqNum
@@ -2824,7 +2824,7 @@ systemStatus setSystemStatus(void)
         {
             buttonOnOff         = false;
             currentButtonOnOff  = buttonOnOff;
-            shutDownSys();
+            shutDownSys(false);
         }
 
         //
