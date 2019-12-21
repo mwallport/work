@@ -303,7 +303,7 @@ class menuGetTECObjTemperature : public menuItemBase
     }
 
     menuGetTECObjTemperature()
-        :   menuItemBase("GetTECObjTemperature", "get a TCU object temperature"),
+        :   menuItemBase("get TEC obj temperature", "get a TCU object temperature"),
             m_pGetTECObjTemperature(&controlProtocol::GetTECObjTemperature) {}
 
     void execute(controlProtocol* pCP)
@@ -550,9 +550,9 @@ class menuGetTECInfo : public menuItemBase
                                 &fwVersion, &serialNum) )
         {
             cout << "\ndeviceType: " << deviceType <<
-                    "hwVersion: " << hwVersion <<
-                    "fwVersion: " << fwVersion <<
-                    "serialNum: " << serialNum << endl;
+                    " hwVersion: " << hwVersion <<
+                    " fwVersion: " << fwVersion <<
+                    " serialNum: " << serialNum << endl;
         } else
         {
             cout << "\nget TEC info failed" << endl;

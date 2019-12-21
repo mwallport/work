@@ -12,7 +12,7 @@
 #define __DEBUG_VIA_SERIAL__
 
 // this is for frivilous debug output
-//#define __DEBUG2_VIA_SERIAL__
+#define __DEBUG2_VIA_SERIAL__
 
 //
 // constants - using #define - have limited space on Arduino
@@ -120,7 +120,7 @@ typedef enum { offline, online, running, stopped, shutdown } runningStates;
 //
 // system status
 //
-typedef enum { SHUTDOWN, READY, RUNNING } systemStatus;
+typedef enum { SHUTDOWN, READY, RUNNING, UNKNOWN } systemStatus;
 
 typedef struct _chillerState
 {
@@ -234,6 +234,6 @@ const int NO_FAULT_LED  = 6;
 // splash screen conents - shown during boot while the system is coming on-line
 //
 const char deftDevise[16] = "deftDevise     ";
-const char buildInfo[16]  = "191219         ";
+const char buildInfo[16]  = "191220         ";
 
 #endif

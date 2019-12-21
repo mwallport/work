@@ -826,7 +826,10 @@ bool controlProtocol::SetHumidityThreshold(uint16_t destAddress, uint16_t thresh
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "ERROR: did not get a m_buffer back\n");
@@ -1019,7 +1022,10 @@ bool controlProtocol::SetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "ERROR: did not get a m_buffer back\n");
@@ -1115,7 +1121,10 @@ bool controlProtocol::GetTECTemperature(uint16_t destAddress, uint16_t tec_addre
             printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1210,7 +1219,10 @@ bool controlProtocol::GetTECObjTemperature(uint16_t destAddress, uint16_t tec_ad
             printf("found in packet temperature %lf seqNumer 0x%02x\n", *temperature, seqNum);
             #endif 
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1307,7 +1319,10 @@ bool controlProtocol::StartChiller(uint16_t destAddress)
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1404,7 +1419,10 @@ bool controlProtocol::StopChiller(uint16_t destAddress)
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1501,7 +1519,10 @@ bool controlProtocol::SetChillerTemperature(uint16_t destAddress, float temperat
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1790,7 +1811,10 @@ bool controlProtocol::GetChillerInfo(uint16_t destAddress, char* info, uint8_t l
             printf("found in packet info \'%s\' seqNumer 0x%02x\n", reinterpret_cast<char*>(info), seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1887,7 +1911,10 @@ bool controlProtocol::EnableTECs(uint16_t destAddress)
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -1908,7 +1935,7 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
     uint16_t            seqNum;
     uint16_t            result;
     msgHeader_t*        pMsgHeader;
-    disableTECsResp_t*    pdisableTECsResp;
+    disableTECsResp_t*  pdisableTECsResp;
 
 
     //
@@ -1984,7 +2011,10 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -2082,8 +2112,12 @@ bool controlProtocol::GetTECInfo(uint16_t destAddress, uint16_t tec_address,
             printf("found in packet result %d, deviceType 0x%02X, hwVersion 0x%02X, fwVersion 0x%02X, \
                 serialNum 0x%02X seqNumer 0x%02x\n", result, *deviceType, *hwVersion, *fwVersion, *serialNum, seqNum);
             #endif
-            
-            retVal  = true;
+
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
+
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -2179,8 +2213,11 @@ bool controlProtocol::StartUpCmd(uint16_t destAddress)
             #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
-            
-            retVal  = true;
+
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
@@ -2277,7 +2314,10 @@ bool controlProtocol::ShutDownCmd(uint16_t destAddress)
             printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
             #endif
 
-            retVal  = true;
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
         } else
         {
             fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);

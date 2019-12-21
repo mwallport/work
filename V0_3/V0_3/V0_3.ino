@@ -2365,7 +2365,7 @@ void initSysStates(systemState& states)
     sysStates.lcd.lcdFacesIndex[HUMIDITY_NRML_OFFSET]  = sensor_humidityAndThreshold;
 
     sysStates.lcd.index = 0;
-    sysStates.sysStatus = SHUTDOWN;
+    sysStates.sysStatus = UNKNOWN;
 }
 
 
@@ -2785,6 +2785,7 @@ systemStatus setSystemStatus(void)
     systemStatus    retVal      = RUNNING;
     bool            TECsOnline  = true;
     bool            TECsRunning = true;
+    bool            TECMismatch = false;
     
 
     //
@@ -2807,15 +2808,25 @@ systemStatus setSystemStatus(void)
 
         if( (stopped == sysStates.tec[(i - MIN_TEC_ADDRESS)].state) )
             TECsRunning = false;
+
+        //
+        // check for TEC on/off line or running mismatch, shutdown if present
+        // can/could happen if a TEC fails or is reset
+        //
+        if( (sysStates.tec[(i - MIN_TEC_ADDRESS)].online != sysStates.tec[0].online) ||
+            (sysStates.tec[(i - MIN_TEC_ADDRESS)].state != sysStates.tec[0].state) )
+        {
+            TECMismatch = true;
+        }
     }
 
-
+    
     //
     // special case check - if the chiller is not running and the TECs are running, shutdown the TECs
     //
-    
-    if( (sysStates.chiller.state != running && TECsRunning == true) || (humidityHigh())
-        || (offline == sysStates.sensor.online || offline == sysStates.chiller.online || false== TECsOnline) ) {
+    if( (sysStates.chiller.state != running && TECsRunning == true) ||
+        (humidityHigh()) ||
+        (TECMismatch || offline == sysStates.sensor.online || offline == sysStates.chiller.online || false== TECsOnline) ) {
           
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
         retVal  = SHUTDOWN;
