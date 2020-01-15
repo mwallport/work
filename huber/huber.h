@@ -8,11 +8,11 @@
    #endif
 #include <SoftwareSerial.h>
 
-//#define __DEBUG_PKT_RX__
+#define __DEBUG_PKT_RX__
 //#define __DEBUG_PKT_TX__
 //#define __DEBUG_HUBER2__
 //#define __DEBUG_HUBER__
-//#define __DEBUG_HUBER_ERROR__
+#define __DEBUG_HUBER_ERROR__
 #define __DOING_PP_COMMANDS__
 
 const uint8_t MAX_COMMAND_RETRY             = 2;
