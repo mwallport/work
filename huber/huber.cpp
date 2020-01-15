@@ -2032,7 +2032,7 @@ bool huber::DoGetTemperatureControlMode_PP(uint32_t TimeoutMs)
     }
 
     // debug stuff
-    #ifdef __DEBUG_PKT_RX__
+    #ifdef __DEBUG_PKT_RX2__
     Serial.print(__PRETTY_FUNCTION__);
     Serial.flush();
     Serial.print(" received ");
