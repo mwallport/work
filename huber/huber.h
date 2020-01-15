@@ -8,7 +8,7 @@
    #endif
 #include <SoftwareSerial.h>
 
-#define __DEBUG_PKT_RX__
+//#define __DEBUG_PKT_RX__
 //#define __DEBUG_PKT_TX__
 //#define __DEBUG_HUBER2__
 //#define __DEBUG_HUBER__
