@@ -2017,7 +2017,7 @@ bool huber::DoGetTemperatureControlMode_PP(uint32_t TimeoutMs)
 
         if( (0 == strncmp(Buff, "CA +", 4)) )
         {
-            if( (0 == strcmp(&Buff[3], "+00000\r\n")) )
+            if( (0 == strncmp(Buff, "CA +00000", 9)) )
                 huberData.tempCtrlMode[0] = 'O';
             else
                 huberData.tempCtrlMode[0] = 'I';
