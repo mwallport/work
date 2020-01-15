@@ -9,8 +9,8 @@
 
 // platform
 //#define __USING_LINUX_USB__
-#define __USING_WINDOWS_USB__
-//#define __RUNNING_ON_CONTROLLINO__
+//#define __USING_WINDOWS_USB__
+#define __RUNNING_ON_CONTROLLINO__
 
 // common
 #include <unistd.h>
