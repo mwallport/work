@@ -234,6 +234,6 @@ const int NO_FAULT_LED  = 6;
 // splash screen conents - shown during boot while the system is coming on-line
 //
 const char deftDevise[16] = "deftDevise     ";
-const char buildInfo[16]  = "191220         ";
+const char buildInfo[16]  = "200709         ";
 
 #endif
