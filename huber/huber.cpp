@@ -1695,13 +1695,13 @@ bool huber::GetAllChillerInfo_PP()
     bool retVal = true;
 
 
-    if(!DoReadSetPoint_PP(3500))
+    if(!DoReadSetPoint_PP(1500))
         retVal = false;
 
-    if(!DoReadInternalActuatlValue_PP(3500))
+    if(!DoReadInternalActuatlValue_PP(1500))
         retVal = false;
 
-    if(!DoGetTemperatureControlMode_PP(3500))
+    if(!DoGetTemperatureControlMode_PP(1500))
         retVal = false;
 
     return(retVal);
