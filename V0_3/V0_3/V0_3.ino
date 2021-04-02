@@ -2457,6 +2457,9 @@ bool getHumidityLevel(void)
     //
     // update status and take a reading
     //
+    if( (sysStates.sensor.online == offline) )
+      digitalWrite(FAULT_LED, HIGH);
+      
     sysStates.sensor.online = online;
 
     if( (sht.readSample()) )
@@ -2614,6 +2617,7 @@ void handleChillerStatus(void)
     //
     if( (offline == sysStates.chiller.online) )
     {
+        digitalWrite(FAULT_LED, HIGH);
         retVal = chiller.GetAllChillerInfo();
     } else
     {
@@ -2680,6 +2684,18 @@ void handleTECStatus(void)
     // assume they are running, if one if found not running, mark the group
     // as not running
     //
+    // before going to chat w/ the TECs - enable the FAUL_LED so it is on 
+    // when there is a fault and on while we could be timing out chatting
+    // to a dead TEC
+    for(uint8_t Address = MIN_TEC_ADDRESS; (Address <= MAX_TEC_ADDRESS); Address++)
+    {
+      if( (sysStates.tec[(Address - MIN_TEC_ADDRESS)].online == offline) )
+      {
+        digitalWrite(FAULT_LED, HIGH);
+        break;
+      }
+    }
+
     for(uint8_t Address = MIN_TEC_ADDRESS; (Address <= MAX_TEC_ADDRESS); Address++)
     {
         sysStates.tec[(Address - MIN_TEC_ADDRESS)].state          = running;
@@ -2820,7 +2836,6 @@ systemStatus setSystemStatus(void)
         }
     }
 
-    
     //
     // special case check - if the chiller is not running and the TECs are running, shutdown the TECs
     //
@@ -2841,7 +2856,7 @@ systemStatus setSystemStatus(void)
         //
         // ALWAYS adjust the button, knobs, and LEDs
         //
-    
+
         //
         // adjust the button LED
         //
@@ -2850,7 +2865,12 @@ systemStatus setSystemStatus(void)
         //
         // adjust the FAULT/NO-FAULT LEDs
         //
-        digitalWrite(FAULT_LED, HIGH);
+        // want this LED to blink
+        if( (HIGH == digitalRead(FAULT_LED)) )
+          digitalWrite(FAULT_LED, LOW);
+        else
+          digitalWrite(FAULT_LED, HIGH);
+          
         digitalWrite(NO_FAULT_LED, LOW);
     
         // enable the humidity threshold knob
@@ -2908,7 +2928,7 @@ systemStatus setSystemStatus(void)
             // adjust the FAULT/NO-FAULT LEDs
             //
             digitalWrite(FAULT_LED, LOW);
-            digitalWrite(NO_FAULT_LED, HIGH);
+            digitalWrite(NO_FAULT_LED, LOW);
    
             // disable the humidity threshold knob
             disableRotaryEncoder();
