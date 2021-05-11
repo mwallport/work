@@ -1,6 +1,7 @@
 // file test.cpp
 #include <map>
 #include <iomanip>
+#include <inttypes.h>
 #include "menu.h"
 
 
@@ -25,7 +26,7 @@ int main(int argc, char** argv)
         return(-1);
     }
     
-    sscanf(argv[2], "%u", &speed);             // assuming this works
+    sscanf(argv[2], "%" SCNu16 "", &speed);             // assuming this works
     printf("trying usb: %s, speed %u\n", argv[1], speed);
     
     #ifdef __USING_WINDOWS_USB__
@@ -115,6 +116,9 @@ void createMenu(void)
 
     p_menuItem  = new menuDisableTECs;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
+    p_menuItem  = new menuSetRTCCmd;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 }
 
 
@@ -130,8 +134,6 @@ void handleMenu(void)
 
 void showMenu(void)
 {
-    char number[3];
-    
     cout << endl;; cout.flush();
     
     for(map<int, menuItemBase*>::iterator i = menuItems.begin(); i != menuItems.end(); ++i)

@@ -28,6 +28,7 @@ typedef bool (controlProtocol::*pGetChillerObjTemperature_t)(uint16_t, float*);
 typedef bool (controlProtocol::*pEnableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pDisableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pGetTECInfo_t)(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+typedef bool (controlProtocol::*pSetRTCCmd_t)(uint16_t);
 
 
 class menuItemBase
@@ -46,6 +47,7 @@ class menuItemBase
     friend ostream& operator<<(ostream& str, const menuItemBase& item)
     {
         str << setw(30) << item.m_name << ":" << item.m_description;
+        return(str);
     }
     
     private:
@@ -327,15 +329,16 @@ class menuGetTECObjTemperature : public menuItemBase
     menuGetTECObjTemperature& operator=(const menuItemBase&);
 };
 
+
 //    bool    StartChiller(uint16_t);
 class menuStartChiller : public menuItemBase
 {
     public:
-    pStartChiller_t m_pStartChiller;
+    pStartChiller_t m_pStartChiller = &controlProtocol::StartChiller;
 
     menuStartChiller()
         :   menuItemBase("start chiller", "start the chiller"),
-            m_pStartChiller(controlProtocol::StartChiller) {}
+            m_pStartChiller(&controlProtocol::StartChiller) {}
 
     void execute(controlProtocol* pCP)
     {
@@ -568,6 +571,30 @@ class menuGetTECInfo : public menuItemBase
     private:
     menuGetTECInfo(const menuItemBase&);
     menuGetTECInfo& operator=(const menuItemBase&);
+};
+
+
+// bool    SetRTCCmd(uint16_t);
+class menuSetRTCCmd : public menuItemBase
+{
+    public:
+    pSetRTCCmd_t m_pSetRTCCmd;
+
+    menuSetRTCCmd()
+        :   menuItemBase("set RTC clock", "set the RTC clock"),
+            m_pSetRTCCmd(&controlProtocol::SetRTCCmd) {}
+
+    void execute(controlProtocol* pCP)
+    {
+        if( (pCP->*m_pSetRTCCmd)(m_destId) )
+            cout << "\nset RTC successful" << endl;
+        else
+            cout << "\nset RTC failed" << endl;
+    }
+    
+    private:
+    menuSetRTCCmd(const menuItemBase&);
+    menuSetRTCCmd& operator=(const menuItemBase&);
 };
 #endif
 

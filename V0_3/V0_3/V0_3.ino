@@ -24,7 +24,7 @@ void setup(void)
     //
     // set the humidity threshold to ambient + 10%
     //
-    setInitialHumidityThreshold();
+/*!    setInitialHumidityThreshold(); */
     
     //
     // TODO: remove this
@@ -40,15 +40,15 @@ void setup(void)
     //
     // always start the chiller
     //
-    startChiller();
+/*!    startChiller();  */
     
     //
     // get all statuses at startup
     // normally gotten via getStatus() which runs on a period
     //
-    handleChillerStatus();
-    handleTECStatus();
-    getHumidityLevel();
+/*!    handleChillerStatus();  */
+/*!    handleTECStatus(); */
+/*!    getHumidityLevel(); */
 }
 
 
@@ -57,7 +57,7 @@ void loop(void)
     //
     // getStatus will update LCD and sysStats data structure
     //
-    getStatus();
+ /*   getStatus(); */
 
 
     //
@@ -71,7 +71,7 @@ void loop(void)
     //
     // update the LCD
     //
-    manageLCD();
+/*    manageLCD(); */
 }
 
 
@@ -700,6 +700,12 @@ void handleMsgs(void)
                     handleDisableTECs();
                     break;
                 };
+
+                case setRTCCmd:
+                {
+                    handleSetRTCCmd();
+                    break;
+                }
     
                 default:
                 {
@@ -1285,7 +1291,6 @@ void handleGetStatusCmd(void)
     #endif
     }
 }
-
 
 
 void handleSetHumidityThreshold(void)
@@ -2291,6 +2296,85 @@ void handleDisableTECs(void)
 }
 
 
+void handleSetRTCCmd(void)
+{
+    setRTCCmd_t* psetRTCCmd = reinterpret_cast<setRTCCmd_t*>(cp.m_buff);
+    uint16_t    respLength; 
+    uint16_t    result = 0;
+
+
+    //
+    // verify the received packet, here beause this is a setRTCCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(psetRTCCmd->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_setRTCCmd_t,
+                                ntohs(psetRTCCmd->crc), ntohs(psetRTCCmd->eop))) )
+        {
+            //
+            // set the RTC - don't know if there is a 'bad' return code from this call
+            //
+            Controllino_SetTimeDate(psetRTCCmd->tv.mday, psetRTCCmd->tv.wday, psetRTCCmd->tv.mon,
+              psetRTCCmd->tv.year, psetRTCCmd->tv.hour, psetRTCCmd->tv.min, psetRTCCmd->tv.sec);
+
+            result  = 1;
+
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println(__PRETTY_FUNCTION__); Serial.println(" used the following to setRTC");
+            Serial.println(psetRTCCmd->tv.mday);
+            Serial.println(psetRTCCmd->tv.wday);
+            Serial.println(psetRTCCmd->tv.mon);
+            Serial.println(psetRTCCmd->tv.year);
+            Serial.println(psetRTCCmd->tv.hour);
+            Serial.println(psetRTCCmd->tv.min);
+            Serial.println(psetRTCCmd->tv.sec);
+            Serial.flush();
+            #endif
+
+            respLength = cp.Make_setRTCCmdResp(cp.m_peerAddress, cp.m_buff,
+                result, psetRTCCmd->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(psetRTCCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(psetRTCCmd->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
 void sendNACK(void)
 {
     msgHeader_t*    pmsgHeader = reinterpret_cast<msgHeader_t*>(cp.m_buff);
@@ -3074,7 +3158,11 @@ void initSystem(void)
     //
     configureFaultNoFault();
     
-
+    //
+    // initialize the RTC
+    //
+    Controllino_RTC_init();
+    
     //
     // let the Serial port settle after initButton()
     //

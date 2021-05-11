@@ -4,8 +4,8 @@
 
 // debug
 //#define __DEBUG_CTRL_PROTO__
-//#define __DEBUG_CONTROL_PKT_TX__
-//#define __DEBUG_CONTROL_PKT_RX__
+#define __DEBUG_CONTROL_PKT_TX__
+#define __DEBUG_CONTROL_PKT_RX__
 
 // platform
 //#define __USING_LINUX_USB__
@@ -45,6 +45,19 @@
     #include <arpa/inet.h>
     #include <termios.h>
     #include <fcntl.h>
+
+    #ifndef GET_LOW_NIBBLE
+    #define GET_LOW_NIBBLE
+    typedef union _int_byte 
+    {
+        int intVal;
+        uint8_t byteVal[sizeof(int)];  
+    } int_byte;
+
+    // idea is to return the lowest nibble for Intel processor of arbitrary size int
+    uint8_t get_low_nibble(int x);
+    #endif
+
 #endif
 
 #ifdef __USING_WINDOWS_USB__
@@ -160,6 +173,8 @@ typedef enum _msgID
     startUpCmdResp,             // reponse
     shutDownCmd,                // shutdown
     shutDownCmdResp,            // shutdown response
+    setRTCCmd,                  // set RTC clock command
+    setRTCCmdResp,              // set RTC clock response
     NACK                        // command not supported
 } msgID;
 
@@ -555,6 +570,40 @@ typedef struct _shutDownCmdResp
 const uint16_t len_shutDownCmdResp_t = sizeof(shutDownCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
+typedef struct _timeind
+{
+  /* Day, WeekDay, Month, Year, Hour, Minute, Second); 
+  Controllino_SetTimeDate(12,4,1,17,15,41,23); */
+    uint8_t sec;      // Seconds (0-60)
+    uint8_t min;      // Minutes (0-59)
+    uint8_t hour;     // Hours (0-23)
+    uint8_t mday;     // Day of the month (1-31)
+    uint8_t mon;      // Month (0-11)
+    uint8_t year;     // Year - 1900
+    uint8_t wday;     // Day of the week (0-6, Sunday = 0)
+    uint8_t fill;     // fill to keep the buff length 
+} timeind;
+
+typedef struct _setRTCCmd
+{
+    msgHeader_t header;
+    timeind  tv;       // the timeval payload to set the RTC on the Controllino
+    CRC     crc;      // 16 bit CRC over the packet
+    EOP     eop;      // end of transmission character/byte
+} setRTCCmd_t;
+const uint16_t len_setRTCCmd_t = sizeof(setRTCCmd_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _setRTCCmdResp
+{
+    msgHeader_t header;
+    uint16_t    result;         // 0 - failed to set; 1 - successfully set
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} setRTCCmdResp_t;
+const uint16_t len_setRTCCmdResp_t = sizeof(setRTCCmdResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
 typedef struct _NACK
 {
     msgHeader_t header;
@@ -606,6 +655,7 @@ class controlProtocol
     bool    EnableTECs(uint16_t);
     bool    DisableTECs(uint16_t);
     bool    GetTECInfo(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+    bool    SetRTCCmd(uint16_t);
 
     // master - control/test PC USB or serial interface
     bool        TxCommandUSB(uint16_t);    // uses m_buff and m_seqNum
@@ -716,6 +766,10 @@ class controlProtocol
     uint16_t    Make_getChillerObjTemperature(uint16_t, uint8_t*);
     uint16_t    Make_getChillerObjTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
     void        Parse_getChillerObjTemperatureResp(uint8_t*, float*, uint16_t*);
+
+    uint16_t    Make_setRTCCmd(uint16_t, uint8_t*, struct tm*);
+    uint16_t    Make_setRTCCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    void        Parse_setRTCCmdResp(uint8_t*, uint16_t*, uint16_t*);
 
     uint16_t    Make_NACK(uint16_t, uint8_t*, uint16_t);    // always for command not supported/recognized
 };
