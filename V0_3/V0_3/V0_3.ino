@@ -40,15 +40,15 @@ void setup(void)
     //
     // always start the chiller
     //
-/*!    startChiller();  */
+    startChiller();
     
     //
     // get all statuses at startup
     // normally gotten via getStatus() which runs on a period
     //
-/*!    handleChillerStatus();  */
-/*!    handleTECStatus(); */
-/*!    getHumidityLevel(); */
+    handleChillerStatus();
+    handleTECStatus();
+    getHumidityLevel();
 }
 
 
@@ -57,7 +57,7 @@ void loop(void)
     //
     // getStatus will update LCD and sysStats data structure
     //
- /*   getStatus(); */
+    getStatus();
 
 
     //
@@ -71,7 +71,7 @@ void loop(void)
     //
     // update the LCD
     //
-/*    manageLCD(); */
+    manageLCD();
 }
 
 
@@ -704,6 +704,12 @@ void handleMsgs(void)
                 case setRTCCmd:
                 {
                     handleSetRTCCmd();
+                    break;
+                }
+                
+                case getRTCCmd:
+                {
+                    handleGetRTCCmd();
                     break;
                 }
     
@@ -2375,6 +2381,84 @@ void handleSetRTCCmd(void)
 }
 
 
+void handleGetRTCCmd(void)
+{
+    getRTCCmd_t* pgetRTCCmd = reinterpret_cast<getRTCCmd_t*>(cp.m_buff);
+    uint16_t    respLength; 
+    uint16_t    result = 0;
+    timeind     RTCTime;
+
+
+    //
+    // verify the received packet, here beause this is a getRTCCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pgetRTCCmd->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_getRTCCmd_t,
+                                ntohs(pgetRTCCmd->crc), ntohs(pgetRTCCmd->eop))) )
+        {
+            //
+            // get the RTC - don't know if there is a 'bad' return code from this call
+            //
+            result  = getControllinoTime(&RTCTime);
+
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.println(__PRETTY_FUNCTION__); Serial.println(" got the following from RTC");
+            Serial.println(result);
+            Serial.println(RTCTime.mday);
+            Serial.println(RTCTime.wday);
+            Serial.println(RTCTime.mon);
+            Serial.println(RTCTime.year);
+            Serial.println(RTCTime.hour);
+            Serial.println(RTCTime.min);
+            Serial.println(RTCTime.sec);
+            Serial.flush();
+            #endif
+
+            respLength = cp.Make_getRTCCmdResp(cp.m_peerAddress, cp.m_buff,
+                &RTCTime, result, pgetRTCCmd->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pgetRTCCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pgetRTCCmd->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
 void sendNACK(void)
 {
     msgHeader_t*    pmsgHeader = reinterpret_cast<msgHeader_t*>(cp.m_buff);
@@ -3184,4 +3268,26 @@ void setInitialHumidityThreshold(void)
     // set threshold to ambient + 10
     //
     sysStates.sensor.threshold = sysStates.sensor.humidity + HUMIDITY_BUFFER;
+}
+
+uint16_t getControllinoTime(timeind* RTCTime)
+{
+    RTCTime->sec    = Controllino_GetSecond();
+    RTCTime->min    = Controllino_GetMinute();
+    RTCTime->hour   = Controllino_GetHour();
+    RTCTime->mday   = Controllino_GetDay();
+    RTCTime->mon    = Controllino_GetMonth();
+    RTCTime->year   = Controllino_GetYear();
+    RTCTime->wday   = Controllino_GetWeekDay();
+    RTCTime->fill = 0x00; // fill to keep the buff length 
+
+    // if any of them are 0xff (-1) the get failed
+    if( (0xff == RTCTime->sec) || (0xff == RTCTime->min) || (0xff == RTCTime->hour) ||
+      (0xff == RTCTime->mday) || (0xff == RTCTime->mon) || (0xff == RTCTime->year) ||
+      (0xff == RTCTime->wday) )
+    {
+      return(0);  // bad
+    }
+
+    return(1);    // good
 }

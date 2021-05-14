@@ -29,6 +29,7 @@ typedef bool (controlProtocol::*pEnableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pDisableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pGetTECInfo_t)(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
 typedef bool (controlProtocol::*pSetRTCCmd_t)(uint16_t);
+typedef bool (controlProtocol::*pGetRTCCmd_t)(uint16_t, struct tm*);
 
 
 class menuItemBase
@@ -596,5 +597,36 @@ class menuSetRTCCmd : public menuItemBase
     menuSetRTCCmd(const menuItemBase&);
     menuSetRTCCmd& operator=(const menuItemBase&);
 };
+
+
+// bool    GetRTCCmd(uint16_t);
+class menuGetRTCCmd : public menuItemBase
+{
+    public:
+    pGetRTCCmd_t m_pGetRTCCmd;
+
+    menuGetRTCCmd()
+        :   menuItemBase("get RTC clock", "get the RTC clock"),
+            m_pGetRTCCmd(&controlProtocol::GetRTCCmd) {}
+
+    void execute(controlProtocol* pCP)
+    {
+        if( (pCP->*m_pGetRTCCmd)(m_destId, &ltime) )
+        {
+            // output the time 
+            cout << "time : " << asctime(&ltime) << endl;
+        }
+        else
+            cout << "\nget RTC failed" << endl;
+    }
+    
+    private:
+    struct tm ltime;
+
+
+    menuGetRTCCmd(const menuItemBase&);
+    menuGetRTCCmd& operator=(const menuItemBase&);
+};
+
 #endif
 

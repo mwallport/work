@@ -119,6 +119,9 @@ void createMenu(void)
 
     p_menuItem  = new menuSetRTCCmd;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
+    p_menuItem  = new menuGetRTCCmd;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 }
 
 

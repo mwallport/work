@@ -14,6 +14,17 @@
 #include "controlProtocol.h"
 
 
+#if defined(__USING_LINUX_USB__) || defined(__USING_WINDOWS_USB__)
+uint8_t get_low_nibble(int x)
+{
+  int_byte ib;
+  ib.intVal = x;
+
+
+  return(ib.byteVal[0]);  // little-endian only for now
+}
+#endif
+
 
 // crc16.cpp
 uint16_t getCRC16(uint16_t CRC, uint8_t byte)
@@ -2343,7 +2354,6 @@ bool controlProtocol::SetRTCCmd(uint16_t destAddress)
     struct tm*          p_ltime = 0;
     struct tm           ltime;
 
-
     //
     // get the time since the epoch
     //
@@ -2447,6 +2457,106 @@ bool controlProtocol::SetRTCCmd(uint16_t destAddress)
     } else
     {
         fprintf(stderr, "%s ERROR: unable to Make_setRTCCMD\n", __PRETTY_FUNCTION__);
+    }
+
+    return(retVal);
+}
+
+
+bool controlProtocol::GetRTCCmd(uint16_t destAddress, struct tm* ltime)
+{
+    bool                retVal  = false;
+    uint16_t            seqNum;
+    uint16_t            result;
+    msgHeader_t*        pMsgHeader;
+    getRTCCmdResp_t*    pgetRTCCmdResp;
+
+
+    //
+    // increment the sequence number for this transaction
+    //
+    ++m_seqNum;
+
+    if( (doTxCommand(Make_getRTCCmd(destAddress, m_buff))) )
+    {
+        //
+        // save the seqNum
+        //
+        pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+        seqNum  = pMsgHeader->seqNum;
+
+        // get the return packet
+        if( (doRxResponse(COMM_TIMEOUT)) )
+        {
+            #ifdef __DEBUG_CTRL_PROTO__
+            //
+            // dump out what we got
+            //
+            for(uint16_t i = 0; i < sizeof(getRTCCmdResp_t); i++)
+            {
+                printf("0x%02X ", m_buff[i]);
+            }
+            printf("\n");
+            #endif
+
+            //
+            // check got the expected message number
+            //
+            pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+            if( (getRTCCmdResp != pMsgHeader->msgNum) )
+            {
+                fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
+                    __PRETTY_FUNCTION__, pMsgHeader->msgNum);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+            //
+            // cast into the buffer, pick up the CRC
+            //
+            pgetRTCCmdResp = reinterpret_cast<getRTCCmdResp_t*>(m_buff);
+
+            //
+            // verify seqNum and CRC
+            //
+            if( !(verifyMessage(len_getRTCCmdResp_t, ntohs(pgetRTCCmdResp->crc),
+                                    seqNum, ntohs(pgetRTCCmdResp->eop))) )
+            {
+                // TODO: drop the packet
+                fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
+                        __PRETTY_FUNCTION__);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+
+            //
+            // report the time
+            //
+            Parse_getRTCCmdResp(m_buff, &result, ltime, &seqNum);
+
+            #ifdef __DEBUG_CTRL_PROTO__
+            printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
+
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
+        } else
+        {
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+        }
+
+    } else
+    {
+        fprintf(stderr, "%s ERROR: unable to Make_getRTCCMD\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -2601,8 +2711,15 @@ uint16_t controlProtocol::Make_setRTCCmd(uint16_t Address, uint8_t* pBuff, struc
     msg->tv.year   = get_low_nibble(ltime->tm_year);  // Year - 1900
     msg->tv.wday   = get_low_nibble(ltime->tm_wday);  // Day of the week (0-6, Sunday = 0)
     msg->tv.fill   = 0x00;                            // fill to keep the buff length 
+
+    // modify a few parameters to match what the Controllino_SetTimeDate wants
+    // see https://github.com/CONTROLLINO-PLC/CONTROLLINO_Library/blob/master/Controllino.h
+
+    msg->tv.mon   += 1;
+    msg->tv.hour  -= 1;
+    msg->tv.year  = ((msg->tv.year + 1900) - 2001) & 0x00ff;
     
-    // create the setRTCCmdResp message in pBuff and CRC16 checksum it
+    // create the setRTCCmdp message in pBuff and CRC16 checksum it
     msg->header.control         = COMMAND;
     msg->header.length          = sizeof(setRTCCmd_t);
     msg->header.address.address = htons(Address);
@@ -2660,6 +2777,104 @@ void controlProtocol::Parse_setRTCCmdResp(uint8_t* m_buff, uint16_t* result, uin
     *result     = ntohs(pResponse->result);
     *pSeqNum    = pResponse->header.seqNum;
 }
+
+
+
+#if defined(__USING_LINUX_USB__) || defined(__USING_WINDOWS_USB__)
+uint16_t controlProtocol::Make_getRTCCmd(uint16_t Address, uint8_t* pBuff)
+{
+    getRTCCmd_t* msg  = reinterpret_cast<getRTCCmd_t*>(pBuff);
+    uint16_t    CRC  = 0;
+
+    // create the getRTCCmdp message in pBuff and CRC16 checksum it
+    msg->header.control         = COMMAND;
+    msg->header.length          = sizeof(getRTCCmd_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = m_seqNum;
+    msg->header.msgNum          = getRTCCmd;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff, len_getRTCCmd_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getRTCCmd_t));
+}
+#endif
+
+
+uint16_t controlProtocol::Make_getRTCCmdResp(uint16_t Address, uint8_t* pBuff,
+            timeind* ltime, uint16_t result, uint16_t SeqNum)
+{
+    getRTCCmdResp_t* msg  = reinterpret_cast<getRTCCmdResp_t*>(pBuff);
+    uint16_t        CRC  = 0;
+
+
+    // create the getRTCCmdResp message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(getRTCCmdResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = getRTCCmdResp;
+
+    // get the result
+    msg->result                 = htons(result);
+
+    msg->tv.sec    = ltime->sec;
+    msg->tv.min    = ltime->min;
+    msg->tv.hour   = ltime->hour;
+    msg->tv.mday   = ltime->mday;
+    msg->tv.mon    = ltime->mon;
+    msg->tv.year   = ltime->year;
+    msg->tv.wday   = ltime->wday;
+    msg->tv.fill   = 0x00;  // fill to keep the buff length 
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff, len_getRTCCmdResp_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getRTCCmdResp_t));
+}
+
+
+void controlProtocol::Parse_getRTCCmdResp(uint8_t* m_buff, uint16_t* result, struct tm* ltime, uint16_t* pSeqNum)
+{
+    getRTCCmdResp_t* pResponse = reinterpret_cast<getRTCCmdResp_t*>(m_buff);
+
+
+    *result     = ntohs(pResponse->result);
+    *pSeqNum    = pResponse->header.seqNum;
+
+    ltime->tm_sec   = pResponse->tv.sec;
+    ltime->tm_min   = pResponse->tv.min;
+    ltime->tm_hour  = pResponse->tv.hour;
+    ltime->tm_mday  = pResponse->tv.mday;
+    ltime->tm_mon   = pResponse->tv.mon;
+    ltime->tm_year  = pResponse->tv.year;
+    ltime->tm_wday  = pResponse->tv.wday;
+
+    // apply the same conversion in reverse .. ?
+    ltime->tm_hour  += 1;
+    ltime->tm_year  += 101;
+}
+
+
+
+
+
+
+
+
+
 
 //
 // send a getStatus message to controllino at Address - future expandability
@@ -3961,15 +4176,4 @@ uint16_t controlProtocol::getMsgId()
 }
 
 
-#if defined(__USING_LINUX_USB__) || defined(__USING_WINDOWS_USB__)
-#ifndef GET_LOW_NIBBLE
-#define GET_LOW_NIBBLE
-uint8_t get_low_nibble(int x)
-{
-  int_byte ib;
-  ib.intVal = x;
-  return(ib.byteVal[(sizeof(int) - 1)]);
-}
-#endif
-#endif
 

@@ -8,9 +8,9 @@
 #define __DEBUG_CONTROL_PKT_RX__
 
 // platform
-//#define __USING_LINUX_USB__
+#define __USING_LINUX_USB__
 //#define __USING_WINDOWS_USB__
-#define __RUNNING_ON_CONTROLLINO__
+//#define __RUNNING_ON_CONTROLLINO__
 
 // common
 #include <unistd.h>
@@ -55,7 +55,7 @@
     } int_byte;
 
     // idea is to return the lowest nibble for Intel processor of arbitrary size int
-    uint8_t get_low_nibble(int x);
+    uint8_t get_low_nibble(int); 
     #endif
 
 #endif
@@ -175,7 +175,9 @@ typedef enum _msgID
     shutDownCmdResp,            // shutdown response
     setRTCCmd,                  // set RTC clock command
     setRTCCmdResp,              // set RTC clock response
-    NACK                        // command not supported
+    getRTCCmd,                  // get the RTC clock 
+    getRTCCmdResp,              // get the RTC clock response
+    NACK  = 0xff                // command not supported
 } msgID;
 
 
@@ -604,6 +606,26 @@ typedef struct _setRTCCmdResp
 const uint16_t len_setRTCCmdResp_t = sizeof(setRTCCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
+typedef struct _getRTCCmd
+{
+    msgHeader_t header;
+    CRC     crc;      // 16 bit CRC over the packet
+    EOP     eop;      // end of transmission character/byte
+} getRTCCmd_t;
+const uint16_t len_getRTCCmd_t = sizeof(getRTCCmd_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getRTCCmdResp
+{
+    msgHeader_t header;
+    uint16_t    result; // 0 - failed to get; 1 - successfully get
+    timeind     tv;     // the timeval payload to get the RTC on the Controllino
+    CRC         crc;    // 16 bit CRC over the packet
+    EOP         eop;    // end of transmission character/byte
+} getRTCCmdResp_t;
+const uint16_t len_getRTCCmdResp_t = sizeof(getRTCCmdResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
 typedef struct _NACK
 {
     msgHeader_t header;
@@ -656,6 +678,7 @@ class controlProtocol
     bool    DisableTECs(uint16_t);
     bool    GetTECInfo(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
     bool    SetRTCCmd(uint16_t);
+    bool    GetRTCCmd(uint16_t, struct tm*);
 
     // master - control/test PC USB or serial interface
     bool        TxCommandUSB(uint16_t);    // uses m_buff and m_seqNum
@@ -770,6 +793,10 @@ class controlProtocol
     uint16_t    Make_setRTCCmd(uint16_t, uint8_t*, struct tm*);
     uint16_t    Make_setRTCCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     void        Parse_setRTCCmdResp(uint8_t*, uint16_t*, uint16_t*);
+
+    uint16_t    Make_getRTCCmd(uint16_t, uint8_t*);
+    uint16_t    Make_getRTCCmdResp(uint16_t, uint8_t*, timeind*, uint16_t, uint16_t);
+    void        Parse_getRTCCmdResp(uint8_t*, uint16_t*, struct tm*, uint16_t*);
 
     uint16_t    Make_NACK(uint16_t, uint8_t*, uint16_t);    // always for command not supported/recognized
 };
