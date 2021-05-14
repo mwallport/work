@@ -39,7 +39,7 @@
     #define ntohl(x) htonl(x)
 #endif
 
-#ifdef __USING_LINUX_USB__
+#ifndef __RUNNING_ON_CONTROLLINO__
     #include <string.h>
     #include <unistd.h>
     #include <arpa/inet.h>
@@ -638,12 +638,17 @@ const uint16_t len_NACK_t = sizeof(NACK_t) - sizeof(CRC) - sizeof(EOP);
 class controlProtocol
 {
     public:
+
+    ~controlProtocol();
+
+#ifdef __RUNNING_ON_CONTROLLINO__
+
+    controlProtocol(uint16_t, uint16_t, uint32_t);                // serial : m_myAddress, m_peerAddress
+
     //
     // define function pointers to handle USB and Serial interfaces
     // called like (this.*TxCommand)()
     //
-    bool    (controlProtocol::*TxCommand)(uint16_t);
-    bool    (controlProtocol::*RxResponse)(uint16_t);
     bool    (controlProtocol::*RxCommand)(uint16_t);
     bool    (controlProtocol::*TxResponse)(uint16_t);
 
@@ -652,13 +657,51 @@ class controlProtocol
     //
     bool    doRxCommand(uint16_t TimeoutMs) { return( (this->*RxCommand)(TimeoutMs) ); };
     bool    doTxResponse(uint16_t length) { return( (this->*TxResponse)(length) ); };
+
+    // slave - Controllino uC 
+    bool    RxCommandSerial(uint16_t);            // uses m_buff and m_seqNum
+    bool    TxResponseSerial(uint16_t);           // uses m_buff and m_seqNum
+
+    uint16_t    Make_startUpCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_shutDownCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getStatusResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint16_t, uint16_t);
+    uint16_t    Make_setHumidityThresholdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getHumidityThresholdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getHumidityResp(uint16_t, uint8_t*, float, uint16_t);
+    uint16_t    Make_setTECTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint16_t);
+    uint16_t    Make_getTECTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
+    uint16_t    Make_getTECObjTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
+    uint16_t    Make_getTECInfoMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint32_t, 
+                                            uint32_t, uint32_t, uint32_t, uint16_t);
+    uint16_t    Make_enableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_disableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_startChillerMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_stopChillerResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getChillerInfoResp(uint16_t, uint8_t*, uint16_t, uint8_t*, uint8_t, uint16_t);
+    uint16_t    Make_setChillerTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getChillerTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
+    uint16_t    Make_getChillerObjTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
+    uint16_t    Make_setRTCCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getRTCCmdResp(uint16_t, uint8_t*, timeind*, uint16_t, uint16_t);
+    uint16_t    Make_NACK(uint16_t, uint8_t*, uint16_t);    // always for command not supported/recognized
+
+#else
+
+    controlProtocol(uint16_t, uint16_t, const char*, uint32_t);   // USB : m_myAddress, m_peerAddress, USB file
+
+    //
+    // define function pointers to handle USB and Serial interfaces
+    // called like (this.*TxCommand)()
+    //
+    bool    (controlProtocol::*TxCommand)(uint16_t);
+    bool    (controlProtocol::*RxResponse)(uint16_t);
+
+    //
+    // functions to hide the member function pointer syntax
+    //
     bool    doTxCommand(uint16_t length) { return( (this->*TxCommand)(length) ); };
     bool    doRxResponse(uint16_t timeout) { return( (this->*RxResponse)(timeout) ); };
 
-    controlProtocol(uint16_t, uint16_t, uint32_t);                // serial : m_myAddress, m_peerAddress
-    controlProtocol(uint16_t, uint16_t, const char*, uint32_t);   // USB : m_myAddress, m_peerAddress, USB file
-    ~controlProtocol();
-    
     bool    StartUpCmd(uint16_t);
     bool    ShutDownCmd(uint16_t);
     bool    GetStatus(uint16_t, uint16_t*, uint16_t*, uint16_t*);
@@ -683,23 +726,7 @@ class controlProtocol
     // master - control/test PC USB or serial interface
     bool        TxCommandUSB(uint16_t);    // uses m_buff and m_seqNum
     bool        RxResponseUSB(uint16_t);   // uses m_buff and m_seqNum, msec to wait for response
-    // implement these later if needed
-    //bool        TxCommandSerial();            // uses m_buff and m_seqNum
-    //bool        RxResponseSerial(uint16_t);   // uses m_buff and m_seqNum, msec to wait for response
 
-    // slave - Controllino uC 
-    bool        RxCommandSerial(uint16_t);            // uses m_buff and m_seqNum
-    bool        TxResponseSerial(uint16_t);           // uses m_buff and m_seqNum
-    // implement these later if needed
-    //bool        RxCommandUSB();            // uses m_buff and m_seqNum
-    //bool        TxResponseUSB();           // uses m_buff and m_seqNum
-
-    // protected:  TODO: protect something !
-    uint16_t    m_seqNum;                       // current m_seqNum
-    uint16_t    m_myAddress;                    // 'my' Address
-    uint16_t    m_peerAddress;                  // peer address, 1 to 1 communication
-    uint8_t     m_buff[MAX_BUFF_LENGTH_CP + 1]; // work m_buffer used by all functions
-    
     #if defined(__USING_LINUX_USB__)
     int         m_fd;                           // for the USB port
     #endif
@@ -709,96 +736,68 @@ class controlProtocol
     #endif
 
     bool        openUSBPort(const char*, uint32_t);
+
+    uint16_t    Make_startUpCmd(uint16_t, uint8_t*);
+    void        Parse_startUpCmdResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_shutDownCmd(uint16_t, uint8_t*);
+    void        Parse_shutDownCmdResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getStatus(uint16_t, uint8_t*);
+    void        Parse_getStatusResp(uint8_t*, uint16_t*, uint16_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_setHumidityThreshold(uint16_t, uint8_t*, uint16_t);
+    void        Parse_setHumidityThresholdResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getHumidityThreshold(uint16_t, uint8_t*);
+    void        Parse_getHumidityThresholdResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getHumidity(uint16_t, uint8_t*);
+    void        Parse_getHumidityResp(uint8_t*, float*, uint16_t*);
+    uint16_t    Make_setTECTemperature(uint16_t, uint8_t*, uint16_t, float);
+    void        Parse_setTECTemperatureResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getTECTemperature(uint16_t, uint8_t*, uint16_t);
+    void        Parse_getTECTemperatureResp(uint8_t*, uint16_t*, float*, uint16_t*);
+    uint16_t    Make_getTECObjTemperature(uint16_t, uint8_t*, uint16_t);
+    void        Parse_getTECObjTemperatureResp(uint8_t*, uint16_t*, float*, uint16_t*);
+    uint16_t    Make_getTECInfoMsg(uint16_t, uint8_t*, uint16_t);
+    void        Parse_getTECInfoMsgResp(uint8_t*, uint16_t*, uint32_t*, uint32_t*, uint32_t*,
+                                                                uint32_t*, uint16_t*);
+    uint16_t    Make_enableTECs(uint16_t, uint8_t*);
+    void        Parse_enableTECsResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_disableTECs(uint16_t, uint8_t*);
+    void        Parse_disableTECsResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_startChillerMsg(uint16_t, uint8_t*);
+    void        Parse_startChillerMsgResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_stopChiller(uint16_t, uint8_t*);
+    void        Parse_stopChillerResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getChillerInfo(uint16_t, uint8_t*);
+    void        Parse_getChillerInfoResp(uint8_t*, uint16_t*, char*, uint8_t, uint16_t*);
+    uint16_t    Make_setChillerTemperature(uint16_t, uint8_t*, float);
+    void        Parse_setChillerTemperatureResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getChillerTemperature(uint16_t, uint8_t*);
+    void        Parse_getChillerTemperatureResp(uint8_t*, float*, uint16_t*);
+    uint16_t    Make_getChillerObjTemperature(uint16_t, uint8_t*);
+    void        Parse_getChillerObjTemperatureResp(uint8_t*, float*, uint16_t*);
+    uint16_t    Make_setRTCCmd(uint16_t, uint8_t*, struct tm*);
+    void        Parse_setRTCCmdResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getRTCCmd(uint16_t, uint8_t*);
+    void        Parse_getRTCCmdResp(uint8_t*, uint16_t*, struct tm*, uint16_t*);
+
+#endif
+
+    //
+    // common to both builds
+    //
+
+    // protected:  TODO: protect something !
+    uint16_t    m_seqNum;                       // current m_seqNum
+    uint16_t    m_myAddress;                    // 'my' Address
+    uint16_t    m_peerAddress;                  // peer address, 1 to 1 communication
+    uint8_t     m_buff[MAX_BUFF_LENGTH_CP + 1]; // work m_buffer used by all functions
+    
+
     bool        verifyMessage(uint16_t, uint16_t, uint16_t, EOP);
     bool        verifyMessage(uint16_t, uint16_t, EOP);
     bool        verifyMessageSeqNum(uint16_t, uint16_t);
     bool        verifyMessageCRC(uint16_t, uint16_t);
     bool        verifyMessageLength(EOP);
     uint16_t    getMsgId();
-
-    uint16_t    Make_startUpCmd(uint16_t, uint8_t*);
-    uint16_t    Make_startUpCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_startUpCmdResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_shutDownCmd(uint16_t, uint8_t*);
-    uint16_t    Make_shutDownCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_shutDownCmdResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getStatus(uint16_t, uint8_t*);
-    uint16_t    Make_getStatusResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint16_t, uint16_t);
-    void        Parse_getStatusResp(uint8_t*, uint16_t*, uint16_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_setHumidityThreshold(uint16_t, uint8_t*, uint16_t);
-    uint16_t    Make_setHumidityThresholdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_setHumidityThresholdResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getHumidityThreshold(uint16_t, uint8_t*);
-    uint16_t    Make_getHumidityThresholdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_getHumidityThresholdResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getHumidity(uint16_t, uint8_t*);
-    uint16_t    Make_getHumidityResp(uint16_t, uint8_t*, float, uint16_t);
-    void        Parse_getHumidityResp(uint8_t*, float*, uint16_t*);
-
-    uint16_t    Make_setTECTemperature(uint16_t, uint8_t*, uint16_t, float);
-    uint16_t    Make_setTECTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint16_t);
-    void        Parse_setTECTemperatureResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getTECTemperature(uint16_t, uint8_t*, uint16_t);
-    uint16_t    Make_getTECTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
-    void        Parse_getTECTemperatureResp(uint8_t*, uint16_t*, float*, uint16_t*);
-
-    uint16_t    Make_getTECObjTemperature(uint16_t, uint8_t*, uint16_t);
-    uint16_t    Make_getTECObjTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
-    void        Parse_getTECObjTemperatureResp(uint8_t*, uint16_t*, float*, uint16_t*);
-
-    uint16_t    Make_getTECInfoMsg(uint16_t, uint8_t*, uint16_t);
-    uint16_t    Make_getTECInfoMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint32_t, 
-                                            uint32_t, uint32_t, uint32_t, uint16_t);
-    void        Parse_getTECInfoMsgResp(uint8_t*, uint16_t*, uint32_t*, uint32_t*, uint32_t*,
-                                                                uint32_t*, uint16_t*);
-
-    uint16_t    Make_enableTECs(uint16_t, uint8_t*);
-    uint16_t    Make_enableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_enableTECsResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_disableTECs(uint16_t, uint8_t*);
-    uint16_t    Make_disableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_disableTECsResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_startChillerMsg(uint16_t, uint8_t*);
-    uint16_t    Make_startChillerMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_startChillerMsgResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_stopChiller(uint16_t, uint8_t*);
-    uint16_t    Make_stopChillerResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_stopChillerResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getChillerInfo(uint16_t, uint8_t*);
-    uint16_t    Make_getChillerInfoResp(uint16_t, uint8_t*, uint16_t, uint8_t*, uint8_t, uint16_t);
-    void        Parse_getChillerInfoResp(uint8_t*, uint16_t*, char*, uint8_t, uint16_t*);
-
-    uint16_t    Make_setChillerTemperature(uint16_t, uint8_t*, float);
-    uint16_t    Make_setChillerTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_setChillerTemperatureResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getChillerTemperature(uint16_t, uint8_t*);
-    uint16_t    Make_getChillerTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
-    void        Parse_getChillerTemperatureResp(uint8_t*, float*, uint16_t*);
-
-    uint16_t    Make_getChillerObjTemperature(uint16_t, uint8_t*);
-    uint16_t    Make_getChillerObjTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
-    void        Parse_getChillerObjTemperatureResp(uint8_t*, float*, uint16_t*);
-
-    uint16_t    Make_setRTCCmd(uint16_t, uint8_t*, struct tm*);
-    uint16_t    Make_setRTCCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
-    void        Parse_setRTCCmdResp(uint8_t*, uint16_t*, uint16_t*);
-
-    uint16_t    Make_getRTCCmd(uint16_t, uint8_t*);
-    uint16_t    Make_getRTCCmdResp(uint16_t, uint8_t*, timeind*, uint16_t, uint16_t);
-    void        Parse_getRTCCmdResp(uint8_t*, uint16_t*, struct tm*, uint16_t*);
-
-    uint16_t    Make_NACK(uint16_t, uint8_t*, uint16_t);    // always for command not supported/recognized
 };
 
 #endif
