@@ -182,7 +182,12 @@ void executeMenuItem(void)
 
     cin.clear(); cin.ignore(1000, '\n');
            
+
+    #ifdef __USING_WINDOWS_USB__
+    system("pause");
+    #else
     cout << "\nPress Enter key to continue";
     getchar();
+    #endif
 }
 

@@ -680,10 +680,14 @@ class menuGetEventLogCmd : public menuItemBase
       {
         //
         // simple decode of the event log entries
+        // simple decode of the event log entries
+        // simple decode of the event log entries
+        // simple decode of the event log entries
         //
         for(int i = 0; i < MAX_ELOG_ENTRY; i++)
         {
           // get the time stamp
+          memset(&ltime, '\0', sizeof(ltime));
           ltime.tm_sec  = eventlog[i].ts.sec;
           ltime.tm_min  = eventlog[i].ts.min;
           ltime.tm_hour = eventlog[i].ts.hour + 1;
@@ -691,41 +695,51 @@ class menuGetEventLogCmd : public menuItemBase
           ltime.tm_year = eventlog[i].ts.year + 101;
           ltime.tm_wday = eventlog[i].ts.wday;
           ltime.tm_mday = eventlog[i].ts.mday;
-
+          
           // get the id and the instance
           id  = eventlog[i].id & 0x0000ffff;
           inst  = (eventlog[i].id  >> 16) & 0x0000ffff;
           memset(time_buff, '\0', sizeof(time_buff));
-          asctime_r(&ltime, time_buff);
-          time_buff[strlen(time_buff) - 1] = 0; // rid of the \n at the end
-          
+          if( (0 == asctime_r(&ltime, time_buff)) )
+          {
+            snprintf(time_buff, 30, "no event time");
+          } else
+          {
+            time_buff[strlen(time_buff) - 1] = 0; // rid of the \n at the end
+          }
           switch(id)
           {
             case TECNotOnLine:
             {
               printf("%-26s : %-18s TCU %u not on line\n",
                 time_buff, "TCUNotOnLine", inst);
+                //asctime(&ltime), "TCUNotOnLine", inst);
               break;
             }
             case TECNotRunning:
             {
               printf("%-26s : %-18s TCU %u not running\n",
                 time_buff, "TCUNotRunning", inst);
+                //asctime(&ltime), "TCUNotRunning", inst);
               break;
             }
             case TECIsMismatch:
             {
               printf("%-26s : %-18s TCU %u state mismatch\n",
                 time_buff, "TCUIsMismatch", inst);
+                //asctime(&ltime), "TCUIsMismatch", inst);
 
               break;
             }
             case TECErrorInfo:
             {
-              printf("%-26s : %-18s TCU %u serial: %zu status: %zu errNum: %zu errInst: %zu errParam: %zu\n",
-                time_buff, "TCUErrorInfo", inst, htons(eventlog[i].data[0]),
-                htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
-                htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));
+              printf("%-26s : %-18s TCU %u serial: %u status: %u errNum: %u errInst: %u errParam: %u\n",
+                time_buff, "TCUErrorInfo", inst, eventlog[i].data[0],
+                //asctime(&ltime), "TCUErrorInfo", inst, htons(eventlog[i].data[0]),
+                //htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
+                //htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));
+                eventlog[i].data[1], eventlog[i].data[2],
+                eventlog[i].data[3], eventlog[i].data[4] & 0x0000ffff);
 
               break;
             }
@@ -733,6 +747,7 @@ class menuGetEventLogCmd : public menuItemBase
             {
               printf("%-26s : %-18s humidity sensor offline\n",
                 time_buff, "HumidityOffline");
+                //asctime(&ltime), "HumidityOffline");
 
               break;
             }
@@ -740,6 +755,7 @@ class menuGetEventLogCmd : public menuItemBase
             {
               printf("%-26s : %-18s humidity high\n",
                 time_buff, "HumidityHigh");
+                //asctime(&ltime), "HumidityHigh");
 
               break;
             }
@@ -747,6 +763,7 @@ class menuGetEventLogCmd : public menuItemBase
             {
               printf("%-26s : %-18s chiller offline\n",
                 time_buff, "ChillerOffline");
+                //asctime(&ltime), "ChillerOffline");
 
               break;
             }
@@ -754,6 +771,7 @@ class menuGetEventLogCmd : public menuItemBase
             {
               printf("%-26s : %-18s chiller not running\n",
                 time_buff, "ChillerNotRunning");
+                //asctime(&ltime), "ChillerNotRunning");
 
               break;
             }
@@ -762,6 +780,7 @@ class menuGetEventLogCmd : public menuItemBase
               // show the bytes
               printf("%-26s : %-18s Id: %zu data[0] %zu data[1] %zu data[2] %zu data[3] %zu data[4] %zu\n",
                 time_buff, "no event", inst, htons(eventlog[i].data[0]),
+                //asctime(&ltime), "no event", inst, htons(eventlog[i].data[0]),
                 htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
                 htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));
               break;
