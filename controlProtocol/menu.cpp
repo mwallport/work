@@ -72,6 +72,9 @@ void createMenu(void)
     p_menuItem  = new menuGetStatus;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
+    p_menuItem  = new menuGetTempCmd;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
     p_menuItem  = new menuGetHumidity;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
@@ -87,8 +90,10 @@ void createMenu(void)
     p_menuItem  = new menuStopChiller;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
+/*  5/19/2021 - using PP commands on Huber chiller, which do not
+    support get chiller info..
     p_menuItem  = new menuGetChillerInfo;
-    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem)); */
 
     p_menuItem  = new menuSetChillerTemperature;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
@@ -121,6 +126,12 @@ void createMenu(void)
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 
     p_menuItem  = new menuGetRTCCmd;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
+    p_menuItem  = new menuClrEventLogCmd;
+    menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
+
+    p_menuItem  = new menuGetEventLogCmd;
     menuItems.insert(pair<int, menuItemBase*>(i++, p_menuItem));
 }
 
@@ -171,12 +182,7 @@ void executeMenuItem(void)
 
     cin.clear(); cin.ignore(1000, '\n');
            
-    #ifdef __USING_WINDOWS_USB__
-    system("pause");
-    #endif
-    
-    #ifdef __USING_LINUX_USB__
-    system("read");
-    #endif
+    cout << "\nPress Enter key to continue";
+    getchar();
 }
 

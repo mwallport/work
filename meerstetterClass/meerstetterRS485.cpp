@@ -1092,7 +1092,7 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
         } else
         {
             Serial.print(__PRETTY_FUNCTION__);
-            Serial.print(" DeviceStatus not run for Address ");
+            Serial.print(" DeviceStatus not good for Address ");
             Serial.print(Address, DEC);
             Serial.print(", is ");
             Serial.println(FieldVal.Value, DEC);
@@ -1311,7 +1311,8 @@ bool meerstetterRS485::GetTECTemp(uint8_t Address, float* setPoint, float* actua
 
 // TODO: verify the uint16_t to uint8_t demotion is OK for tec_address .. should be
 bool meerstetterRS485::GetTECInfo(uint8_t Address, uint32_t* deviceType, uint32_t* hwVersion,
-                                        uint32_t* fwVersion, uint32_t* serialNumber)
+                uint32_t* fwVersion, uint32_t* serialNumber, uint32_t* deviceStatus,
+                uint32_t* errNumber, uint32_t* errInstance, uint32_t* errParameter)
 {
     bool retVal  = true;
     MeParLongFields Fields;
@@ -1339,6 +1340,25 @@ bool meerstetterRS485::GetTECInfo(uint8_t Address, uint32_t* deviceType, uint32_
     MeCom_COM_SerialNumber(Address, &Fields, Cmd);
     *serialNumber = Fields.Value;
 
+    // device status
+    Fields = {0, 0, 0};
+    MeCom_COM_DeviceStatus(Address, &Fields, Cmd);
+    *deviceStatus = Fields.Value;
+
+    // error number
+    Fields = {0, 0, 0};
+    MeCom_COM_ErrorNumber(Address, &Fields, Cmd);
+    *errNumber = Fields.Value;
+
+    // error instance
+    Fields = {0, 0, 0};
+    MeCom_COM_ErrorInstance(Address, &Fields, Cmd);
+    *errInstance = Fields.Value;
+
+    // error parameter
+    Fields = {0, 0, 0};
+    MeCom_COM_ErrorParameter(Address, &Fields, Cmd);
+    *errParameter = Fields.Value;
 
     return(retVal);
 }

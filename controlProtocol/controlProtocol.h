@@ -4,8 +4,8 @@
 
 // debug
 //#define __DEBUG_CTRL_PROTO__
-#define __DEBUG_CONTROL_PKT_TX__
-#define __DEBUG_CONTROL_PKT_RX__
+//#define __DEBUG_CONTROL_PKT_TX__
+//#define __DEBUG_CONTROL_PKT_RX__
 
 // platform
 #define __USING_LINUX_USB__
@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "eventlog.h"
 
 
 #ifdef __RUNNING_ON_CONTROLLINO__
@@ -126,7 +127,7 @@ uint16_t calcCRC16(uint8_t* pBuff, uint16_t length);
 const   uint8_t     MAX_CHILLER_TEMP_LENGH  = 8;    // i.e "-21.5"  or "+100.1" - sign and a float number
 const   uint8_t     MAX_TEC_TEMP_LENGH      = 8;    // i.e "-21.5"  or "+100.1" - sign and a float number
 const   uint8_t     MAX_HUMIDITY_LENGTH     = 8;    // "34.37" interpreted as percent
-const   uint8_t     MAX_BUFF_LENGTH_CP      = 64;   // size of the work m_buffer
+const   uint16_t    MAX_BUFF_LENGTH_CP      = 256;  // size of the work m_buffer
 const   uint8_t     MAX_CHILLER_INFO_LENGTH = 20;   // same size as the name in the huber protocol
 const   uint8_t     COMMAND                 = '#';  // start packet byte for commands
 const   uint8_t     RESPONSE                = '!';  // start packet byte for responses
@@ -177,6 +178,12 @@ typedef enum _msgID
     setRTCCmdResp,              // set RTC clock response
     getRTCCmd,                  // get the RTC clock 
     getRTCCmdResp,              // get the RTC clock response
+    clrEventLogCmd,             // clear the event log
+    clrEventLogCmdResp,         // clear the event log response
+    getEventLogCmd,             // get the eventlog
+    getEventLogCmdResp,         // get the eventlog response
+    getTempCmd,                 // get the sht sensor-read temperature
+    getTempCmdResp,             // response bla bal ( i'm tired )
     NACK  = 0xff                // command not supported
 } msgID;
 
@@ -524,10 +531,14 @@ typedef struct _getTECInfoMsgResp
     uint32_t    deviceType;     // meerstetter device type, see MeCom Protocol Specification 5117C.pdf
     uint32_t    hwVersion;      // meerstetter h/w version
     uint32_t    fwVersion;      // meerstetter f/w version
+    uint32_t    serialNumber;   // meerstetter serial number
+    uint32_t    deviceStatus;   // dev status
+    uint32_t    errNumber;      // error number
+    uint32_t    errInstance;    // instance of/for the error
+    uint32_t    errParameter;   // error paramerer 
     #ifdef __RUNNING_ON_CONTROLLINO__
     uint16_t    pad;            // some Arduino black magic here
     #endif
-    uint32_t    serialNumber;   // meerstetter serial number
     CRC         crc;            // 16 bit CRC over the packet
     EOP         eop;            // end of transmission character/byte
 } getTECInfoMsgResp_t;
@@ -572,20 +583,6 @@ typedef struct _shutDownCmdResp
 const uint16_t len_shutDownCmdResp_t = sizeof(shutDownCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
-typedef struct _timeind
-{
-  /* Day, WeekDay, Month, Year, Hour, Minute, Second); 
-  Controllino_SetTimeDate(12,4,1,17,15,41,23); */
-    uint8_t sec;      // Seconds (0-60)
-    uint8_t min;      // Minutes (0-59)
-    uint8_t hour;     // Hours (0-23)
-    uint8_t mday;     // Day of the month (1-31)
-    uint8_t mon;      // Month (0-11)
-    uint8_t year;     // Year - 1900
-    uint8_t wday;     // Day of the week (0-6, Sunday = 0)
-    uint8_t fill;     // fill to keep the buff length 
-} timeind;
-
 typedef struct _setRTCCmd
 {
     msgHeader_t header;
@@ -626,6 +623,64 @@ typedef struct _getRTCCmdResp
 const uint16_t len_getRTCCmdResp_t = sizeof(getRTCCmdResp_t) - sizeof(CRC) - sizeof(EOP);
 
 
+typedef struct _clrEventLogCmd
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} clrEventLogCmd_t;
+const uint16_t len_clrEventLogCmd_t = sizeof(clrEventLogCmd_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _clrEventLogCmdResp
+{
+    msgHeader_t header;
+    uint16_t    result;         // 0 - failed to set; 1 - successfully set
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} clrEventLogCmdResp_t;
+const uint16_t len_clrEventLogCmdResp_t = sizeof(clrEventLogCmdResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getEventLogCmd
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getEventLogCmd_t;
+const uint16_t len_getEventLogCmd_t = sizeof(getEventLogCmd_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getEventLogCmdResp
+{
+    msgHeader_t header;
+    uint16_t    result;         // 0 - failed to set; 1 - successfully set
+    elogentry   eventlog[MAX_ELOG_ENTRY];       // the whole event log !
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getEventLogCmdResp_t;
+const uint16_t len_getEventLogCmdResp_t = sizeof(getEventLogCmdResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getTempCmd
+{
+    msgHeader_t header;
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getTempCmd_t;
+const uint16_t len_getTempCmd_t = sizeof(getTempCmd_t) - sizeof(CRC) - sizeof(EOP);
+
+
+typedef struct _getTempCmdResp
+{
+    msgHeader_t header;
+    uint16_t    temp;           // temperarue as from the sht .. no floating point yet
+    CRC         crc;            // 16 bit CRC over the packet
+    EOP         eop;            // end of transmission character/byte
+} getTempCmdResp_t;
+const uint16_t len_getTempCmdResp_t = sizeof(getTempCmdResp_t) - sizeof(CRC) - sizeof(EOP);
+
+
 typedef struct _NACK
 {
     msgHeader_t header;
@@ -650,17 +705,17 @@ class controlProtocol
     // called like (this.*TxCommand)()
     //
     bool    (controlProtocol::*RxCommand)(uint16_t);
-    bool    (controlProtocol::*TxResponse)(uint16_t);
+    bool    (controlProtocol::*TxResponse)(int16_t);
 
     //
     // functions to hide the member function pointer syntax
     //
     bool    doRxCommand(uint16_t TimeoutMs) { return( (this->*RxCommand)(TimeoutMs) ); };
-    bool    doTxResponse(uint16_t length) { return( (this->*TxResponse)(length) ); };
+    bool    doTxResponse(int16_t length) { return( (this->*TxResponse)(length) ); };
 
     // slave - Controllino uC 
     bool    RxCommandSerial(uint16_t);            // uses m_buff and m_seqNum
-    bool    TxResponseSerial(uint16_t);           // uses m_buff and m_seqNum
+    bool    TxResponseSerial(int16_t);            // uses m_buff and m_seqNum
 
     uint16_t    Make_startUpCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     uint16_t    Make_shutDownCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
@@ -672,7 +727,7 @@ class controlProtocol
     uint16_t    Make_getTECTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
     uint16_t    Make_getTECObjTemperatureResp(uint16_t, uint8_t*, uint16_t, uint16_t, float, uint16_t);
     uint16_t    Make_getTECInfoMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t, uint32_t, 
-                                            uint32_t, uint32_t, uint32_t, uint16_t);
+                  uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint16_t);
     uint16_t    Make_enableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     uint16_t    Make_disableTECsResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     uint16_t    Make_startChillerMsgResp(uint16_t, uint8_t*, uint16_t, uint16_t);
@@ -683,6 +738,9 @@ class controlProtocol
     uint16_t    Make_getChillerObjTemperatureResp(uint16_t, uint8_t*, float, uint16_t);
     uint16_t    Make_setRTCCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     uint16_t    Make_getRTCCmdResp(uint16_t, uint8_t*, timeind*, uint16_t, uint16_t);
+    uint16_t    Make_clrEventLogCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
+    uint16_t    Make_getEventLogCmdResp(uint16_t, uint8_t*, uint16_t, const elogentry*, uint16_t);
+    uint16_t    Make_getTempCmdResp(uint16_t, uint8_t*, uint16_t, uint16_t);
     uint16_t    Make_NACK(uint16_t, uint8_t*, uint16_t);    // always for command not supported/recognized
 
 #else
@@ -719,9 +777,13 @@ class controlProtocol
     bool    GetChillerObjTemperature(uint16_t, float*);
     bool    EnableTECs(uint16_t);
     bool    DisableTECs(uint16_t);
-    bool    GetTECInfo(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+    bool    GetTECInfo(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*,
+                        uint32_t*, uint32_t*, uint32_t*, uint32_t*);
     bool    SetRTCCmd(uint16_t);
     bool    GetRTCCmd(uint16_t, struct tm*);
+    bool    ClrEventLogCmd(uint16_t);
+    bool    GetEventLogCmd(uint16_t, elogentry*);
+    bool    GetTempCmd(uint16_t, uint16_t*);
 
     // master - control/test PC USB or serial interface
     bool        TxCommandUSB(uint16_t);    // uses m_buff and m_seqNum
@@ -757,7 +819,7 @@ class controlProtocol
     void        Parse_getTECObjTemperatureResp(uint8_t*, uint16_t*, float*, uint16_t*);
     uint16_t    Make_getTECInfoMsg(uint16_t, uint8_t*, uint16_t);
     void        Parse_getTECInfoMsgResp(uint8_t*, uint16_t*, uint32_t*, uint32_t*, uint32_t*,
-                                                                uint32_t*, uint16_t*);
+                                        uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint16_t*);
     uint16_t    Make_enableTECs(uint16_t, uint8_t*);
     void        Parse_enableTECsResp(uint8_t*, uint16_t*, uint16_t*);
     uint16_t    Make_disableTECs(uint16_t, uint8_t*);
@@ -778,6 +840,12 @@ class controlProtocol
     void        Parse_setRTCCmdResp(uint8_t*, uint16_t*, uint16_t*);
     uint16_t    Make_getRTCCmd(uint16_t, uint8_t*);
     void        Parse_getRTCCmdResp(uint8_t*, uint16_t*, struct tm*, uint16_t*);
+    uint16_t    Make_clrEventLogCmd(uint16_t, uint8_t*);
+    void        Parse_clrEventLogCmdResp(uint8_t*, uint16_t*, uint16_t*);
+    uint16_t    Make_getEventLogCmd(uint16_t, uint8_t*);
+    void        Parse_getEventLogCmdResp(uint8_t*, uint16_t*, elogentry*, uint16_t*);
+    uint16_t    Make_getTempCmd(uint16_t, uint8_t*);
+    void        Parse_getTempCmdResp(uint8_t*, uint16_t*, uint16_t*);
 
 #endif
 
@@ -799,5 +867,18 @@ class controlProtocol
     bool        verifyMessageLength(EOP);
     uint16_t    getMsgId();
 };
+
+
+//
+// event log
+//                                                // will be this in event log
+const uint32_t    TECNotOnLine          = 0x0010; // TCUNotOnLine
+const uint32_t    TECNotRunning         = 0x0011; // TCUNotRunning
+const uint32_t    TECIsMismatch         = 0x0012; // TCUIsMismatch
+const uint32_t    TECErrorInfo          = 0x0013; // TCUErrorInfo
+const uint32_t    HumiditySensorOffline = 0x0020; // HumidityOffline
+const uint32_t    HumidityHigh          = 0x0021; // HumidityHigh
+const uint32_t    ChillerOffline        = 0x0030; // ChillerOffline
+const uint32_t    ChillerNotRunning     = 0x0031; // ChillerNotRunning
 
 #endif

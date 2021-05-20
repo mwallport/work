@@ -7,6 +7,7 @@
 #include <controlProtocol.h>
 #include <huber.h>              // huber chiller communication library
 #include <meerstetterRS485.h>   // meerstetter TEC communication library
+#include <eventlog.h>
 #include "V0_3.h" 
 
 
@@ -14,7 +15,6 @@
 
 void setup(void)
 {
-
     //
     // start the system components and Serial port if running debug
     //
@@ -24,7 +24,7 @@ void setup(void)
     //
     // set the humidity threshold to ambient + 10%
     //
-/*!    setInitialHumidityThreshold(); */
+    setInitialHumidityThreshold();
     
     //
     // TODO: remove this
@@ -255,7 +255,14 @@ void getStatus(void)
 
             // stop the chiller, stop the TECs
             if( (SHUTDOWN != sysStates.sysStatus) )
+            {
+                getControllinoTime(&tstamp);
+                clrEventLogEntry(&event);
+                event.id  = HumidityHigh;
+                event.ts  = tstamp;
+                addEventLogEntry(&event);
                 shutDownSys(false);
+            }
         } else
         {
             enableButtonISR();
@@ -713,6 +720,24 @@ void handleMsgs(void)
                     break;
                 }
     
+                case clrEventLogCmd:
+                {
+                    handleClrEventLogCmd();
+                    break;
+                }
+    
+                case getEventLogCmd:
+                {
+                    handleGetEventLogCmd();
+                    break;
+                }
+    
+                case getTempCmd:
+                {
+                    handleGetTempCmd();
+                    break;
+                }
+
                 default:
                 {
                     // send NACK
@@ -1508,6 +1533,81 @@ void handleGetHumidity(void)
 }
 
 
+void handleGetTempCmd(void)
+{
+    getTempCmd_t* pgetTempCmd = reinterpret_cast<getTempCmd_t*>(cp.m_buff);
+    uint16_t      respLength; 
+    float         temp  = 0;
+    uint16_t      itemp = 0;
+    int16_t       fraction;
+    int16_t       base;
+
+
+    //
+    // verify the received packet, here beause this is a getTempCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pgetTempCmd->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_getTempCmd_t,
+                        ntohs(pgetTempCmd->crc), ntohs(pgetTempCmd->eop))) )
+        {
+            //
+            // use the sysStates content to respond, send back the received seqNum
+            //
+            temp = getTemperature();
+
+            base = temp;  // explicit conversion to int to peel off the fraction part
+            fraction  = ((float)(temp - base))*100;
+            itemp     = base << 8;
+            itemp     |= fraction & 0x00ff;
+
+            #ifdef __DEBUG_VIA_SERIAL__
+            Serial.print("sht.getTemperature() returned: "); Serial.println(temp, 2);
+            Serial.print("returning representation: "); Serial.println(itemp, HEX);
+            #endif
+
+            respLength = cp.Make_getTempCmdResp(cp.m_peerAddress, cp.m_buff, itemp, pgetTempCmd->header.seqNum);
+
+            //
+            // use the CP object to send the response back
+            // this functoin usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pgetTempCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pgetTempCmd->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
 void handleSetTECTemperature(void)
 {
     setTECTemperature_t* psetTECTemperature = reinterpret_cast<setTECTemperature_t*>(cp.m_buff);
@@ -2083,12 +2183,17 @@ void handleGetChillerTemperature(bool GetSetPoint)
 void handlGetTECInfo(void)
 {
     getTECInfoMsg_t*   pgetTECInfo = reinterpret_cast<getTECInfoMsg_t*>(cp.m_buff);
-    uint16_t        respLength;
-    uint16_t        result = 0;
-    uint32_t        deviceType  = 0;
-    uint32_t        hwVersion   = 0;
-    uint32_t        fwVersion   = 0;
-    uint32_t        serialNumber= 0;
+    uint16_t respLength;
+    uint16_t result       = 0;
+    uint32_t deviceType   = 0;
+    uint32_t hwVersion    = 0;
+    uint32_t fwVersion    = 0;
+    uint32_t serialNumber = 0;
+    uint32_t deviceStatus = 0;
+    uint32_t errNumber    = 0;
+    uint32_t errInstance  = 0;
+    uint32_t errParameter = 0;
+    
 
 
     if( (ntohs(pgetTECInfo->header.address.address)) == cp.m_myAddress)
@@ -2102,8 +2207,8 @@ void handlGetTECInfo(void)
             //
             // chiller informaion is gotton during getStatus
             //
-            if( (getTECInfo(ntohs(pgetTECInfo->tec_address), &deviceType,
-                                &hwVersion, &fwVersion, &serialNumber)) )
+            if( (getTECInfo(ntohs(pgetTECInfo->tec_address), &deviceType, &hwVersion, &fwVersion,
+                      &serialNumber, &deviceStatus, &errNumber, &errInstance, &errParameter)) )
             {
                 result  = 1;
             } else
@@ -2116,7 +2221,8 @@ void handlGetTECInfo(void)
             }
 
             respLength = cp.Make_getTECInfoMsgResp(cp.m_peerAddress, cp.m_buff, htons(pgetTECInfo->tec_address), result,
-                                deviceType, hwVersion, fwVersion, serialNumber, pgetTECInfo->header.seqNum);
+                                deviceType, hwVersion, fwVersion, serialNumber, deviceStatus,
+                                errNumber, errInstance, errParameter, pgetTECInfo->header.seqNum);
 
             //
             // use the CP object to send the response back
@@ -2329,18 +2435,6 @@ void handleSetRTCCmd(void)
 
             result  = 1;
 
-            #ifdef __DEBUG_VIA_SERIAL__
-            Serial.println(__PRETTY_FUNCTION__); Serial.println(" used the following to setRTC");
-            Serial.println(psetRTCCmd->tv.mday);
-            Serial.println(psetRTCCmd->tv.wday);
-            Serial.println(psetRTCCmd->tv.mon);
-            Serial.println(psetRTCCmd->tv.year);
-            Serial.println(psetRTCCmd->tv.hour);
-            Serial.println(psetRTCCmd->tv.min);
-            Serial.println(psetRTCCmd->tv.sec);
-            Serial.flush();
-            #endif
-
             respLength = cp.Make_setRTCCmdResp(cp.m_peerAddress, cp.m_buff,
                 result, psetRTCCmd->header.seqNum
             );
@@ -2406,19 +2500,6 @@ void handleGetRTCCmd(void)
             //
             result  = getControllinoTime(&RTCTime);
 
-            #ifdef __DEBUG_VIA_SERIAL__
-            Serial.println(__PRETTY_FUNCTION__); Serial.println(" got the following from RTC");
-            Serial.println(result);
-            Serial.println(RTCTime.mday);
-            Serial.println(RTCTime.wday);
-            Serial.println(RTCTime.mon);
-            Serial.println(RTCTime.year);
-            Serial.println(RTCTime.hour);
-            Serial.println(RTCTime.min);
-            Serial.println(RTCTime.sec);
-            Serial.flush();
-            #endif
-
             respLength = cp.Make_getRTCCmdResp(cp.m_peerAddress, cp.m_buff,
                 &RTCTime, result, pgetRTCCmd->header.seqNum
             );
@@ -2453,6 +2534,133 @@ void handleGetRTCCmd(void)
     {
         Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
         Serial.println(ntohs(pgetRTCCmd->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void handleClrEventLogCmd(void)
+{
+    clrEventLogCmd_t* pclrEventLogCmd = reinterpret_cast<clrEventLogCmd_t*>(cp.m_buff);
+    uint16_t    respLength; 
+    uint16_t    result = 1;
+
+
+    //
+    // verify the received packet, here beause this is a clrEventLogCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pclrEventLogCmd->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_clrEventLogCmd_t,
+                                ntohs(pclrEventLogCmd->crc), ntohs(pclrEventLogCmd->eop))) )
+        {
+            //
+            // get the RTC - don't know if there is a 'bad' return code from this call
+            //
+            clrEventLog();
+
+            respLength = cp.Make_clrEventLogCmdResp(cp.m_peerAddress, cp.m_buff,
+                result, pclrEventLogCmd->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pclrEventLogCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pclrEventLogCmd->header.address.address));
+        Serial.flush();
+    #endif
+    }
+}
+
+
+void handleGetEventLogCmd(void)
+{
+    getEventLogCmd_t* pgetEventLogCmd = reinterpret_cast<getEventLogCmd_t*>(cp.m_buff);
+    uint16_t    respLength; 
+    uint16_t    result = 1;
+
+
+    //
+    // verify the received packet, here beause this is a getEventLogCmdCmd
+    // check this is my address and the CRC is correct
+    //
+    if( (ntohs(pgetEventLogCmd->header.address.address)) == cp.m_myAddress)
+    {
+        //
+        // verify the CRC
+        //
+        if( (cp.verifyMessage(len_getEventLogCmd_t,
+                                ntohs(pgetEventLogCmd->crc), ntohs(pgetEventLogCmd->eop))) )
+        {
+            //
+            // get the RTC - don't know if there is a 'bad' return code from this call
+            //
+            respLength = cp.Make_getEventLogCmdResp(cp.m_peerAddress, cp.m_buff,
+                result, getEventLog(), pgetEventLogCmd->header.seqNum
+            );
+
+            //
+            // use the CP object to send the response back
+            // this function usese the cp.m_buff created above, just
+            // need to send the lenght into the function
+            //
+            
+            if( !(cp.doTxResponse(respLength)))
+            {
+                Serial.print(__PRETTY_FUNCTION__); Serial.println(" ERROR: failed to send response");
+                Serial.flush();
+            #ifdef __DEBUG2_VIA_SERIAL__
+            } else
+            {
+                Serial.println(__PRETTY_FUNCTION__); Serial.print(" sent response");
+                Serial.flush();
+            #endif
+            }
+        #ifdef __DEBUG_VIA_SERIAL__
+        } else
+        {
+            Serial.print(__PRETTY_FUNCTION__); Serial.print(" ERROR: dropping packet bad CRC: ");
+            Serial.println(ntohs(pgetEventLogCmd->crc));
+            Serial.flush();
+        #endif
+        }
+
+    #ifdef __DEBUG_VIA_SERIAL__
+    } else
+    {
+        Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: bad address, dropping packet");
+        Serial.println(ntohs(pgetEventLogCmd->header.address.address));
         Serial.flush();
     #endif
     }
@@ -2705,6 +2913,19 @@ bool getHumidityLevel(void)
 }
 
 
+// this is slapped in at the last minute .. no fancy checkin' goin' on here ..
+// .. and .. dropping the floating point
+float getTemperature(void)
+{
+    float retVal = 0;
+
+    sht.readSample();
+    retVal = sht.getTemperature();
+
+    return(retVal); // get a free conversion to int ..?
+}
+
+
 bool TECsRunning(void)
 {
     bool retVal = true;
@@ -2884,7 +3105,7 @@ void handleTECStatus(void)
 
             sysStates.tec[(Address - MIN_TEC_ADDRESS)].online   = offline;
             sysStates.tec[(Address - MIN_TEC_ADDRESS)].state    = stopped;
-            #ifdef __DEBUG2_VIA_SERIAL__
+            #ifdef __DEBUG_VIA_SERIAL__
         } else
         {
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" found ");
@@ -2894,9 +3115,12 @@ void handleTECStatus(void)
             #endif
         }
 
+        //
+        // verify they are reachable
+        //
         if( !(ms.TECRunning(Address)) )
         {
-            #ifdef __DEBUG2_VIA_SERIAL__
+            #ifdef __DEBUG_VIA_SERIAL__
             Serial.print(__PRETTY_FUNCTION__); Serial.print(" WARNING: TEC ");
             Serial.print(Address); Serial.println(" is not running");
             Serial.flush();
@@ -2945,14 +3169,15 @@ void handleTECStatus(void)
 }
 
 
-// careful . . tec_address is a
 bool getTECInfo(uint8_t tec_address, uint32_t* deviceType, uint32_t* hwVersion,
-                                        uint32_t* fwVersion, uint32_t* serialNumber)
+                uint32_t* fwVersion, uint32_t* serialNumber, uint32_t* deviceStatus,
+                uint32_t* errNumber, uint32_t* errInstance, uint32_t* errParameter)
 {
     bool retVal = true;
 
 
-    if( !(ms.GetTECInfo(tec_address, deviceType, hwVersion, fwVersion, serialNumber)) )
+    if( !(ms.GetTECInfo(tec_address, deviceType, hwVersion, fwVersion, serialNumber,
+          deviceStatus, errNumber, errInstance, errParameter)) )
     {
         retVal  = false;
         #ifdef __DEBUG_VIA_SERIAL__
@@ -2966,10 +3191,18 @@ bool getTECInfo(uint8_t tec_address, uint32_t* deviceType, uint32_t* hwVersion,
 
 systemStatus setSystemStatus(void)
 {
-    systemStatus    retVal      = RUNNING;
-    bool            TECsOnline  = true;
-    bool            TECsRunning = true;
-    bool            TECMismatch = false;
+    systemStatus  retVal        = RUNNING;
+    bool          TECsOnline    = true;
+    bool          TECsRunning   = true;
+    bool          TECMismatch   = false;
+    uint32_t      deviceType;
+    uint32_t      hwVersion;
+    uint32_t      fwVersion;
+    uint32_t      serialNumber;
+    uint32_t      deviceStatus;
+    uint32_t      errNumber;
+    uint32_t      errInstance;
+    uint32_t      errParameter;
     
 
     //
@@ -2982,16 +3215,48 @@ systemStatus setSystemStatus(void)
     //
 
 
+    // if there is an unexpected transition to SHUTDOWN, events will be logged
+    // this is the timestamp for all events that will be logged now
+    getControllinoTime(&tstamp);
+
     //
-    // accumulate the TECs status'
+    // accumulate the TECs status and make event log entries
+    // if not already in SHUTDOWN, these are unexpected events that need to be logged
     //
-    for(int i = MIN_TEC_ADDRESS; i <= MAX_TEC_ADDRESS; i++)
+    for(uint32_t i = MIN_TEC_ADDRESS; i <= MAX_TEC_ADDRESS; i++)
     {
         if( (offline == sysStates.tec[(i - MIN_TEC_ADDRESS)].online) )
-            TECsOnline = false;
+        {
+            TECsOnline = false;   // event log made upon transition to SHUTDOWN state
+
+            // if not SHUTDOWN, make an eventlog of this for THIS TCU Id
+            if( (SHUTDOWN != sysStates.sysStatus) )
+            {
+              // REMOVE me
+              #ifdef __DEBUG_VIA_SERIAL__
+              Serial.println("logging TEC not online");
+              #endif
+           
+              clrEventLogEntry(&event);
+              event.id  = (i << 16) | TECNotOnLine;
+              event.ts  = tstamp;
+              addEventLogEntry(&event);
+            }
+        }
 
         if( (stopped == sysStates.tec[(i - MIN_TEC_ADDRESS)].state) )
-            TECsRunning = false;
+        {
+            TECsRunning = false;  // event log made upon transition to SHUTDOWN state
+
+            // if RUNNING, make an eventlog of this for THIS TCU Id
+            if( (RUNNING == sysStates.sysStatus) )
+            {
+              clrEventLogEntry(&event);
+              event.id  = (i << 16) | TECNotRunning;
+              event.ts  = tstamp;
+              addEventLogEntry(&event);
+            }
+        }
 
         //
         // check for TEC on/off line or running mismatch, shutdown if present
@@ -3000,7 +3265,21 @@ systemStatus setSystemStatus(void)
         if( (sysStates.tec[(i - MIN_TEC_ADDRESS)].online != sysStates.tec[0].online) ||
             (sysStates.tec[(i - MIN_TEC_ADDRESS)].state != sysStates.tec[0].state) )
         {
-            TECMismatch = true;
+            TECMismatch = true; // event log made upon transition to SHUTDOWN state
+
+            // if not SHUTDOWN, make an eventlog of this for THIS TCU Id
+            if( (SHUTDOWN != sysStates.sysStatus) )
+            {
+              // REMOVE me
+              #ifdef __DEBUG_VIA_SERIAL__
+              Serial.println("logging TEC mismatch");
+              #endif
+              
+              clrEventLogEntry(&event);
+              event.id  = (i << 16) | TECIsMismatch;
+              event.ts  = tstamp;
+              addEventLogEntry(&event);
+            }
         }
     }
 
@@ -3009,8 +3288,8 @@ systemStatus setSystemStatus(void)
     //
     if( (sysStates.chiller.state != running && TECsRunning == true) ||
         (humidityHigh()) ||
-        (TECMismatch || offline == sysStates.sensor.online || offline == sysStates.chiller.online || false== TECsOnline) ) {
-          
+        (TECMismatch || offline == sysStates.sensor.online || offline == sysStates.chiller.online || false== TECsOnline) )
+    {
         sysStates.lcd.lcdFacesIndex[SYSTEM_NRML_OFFSET]    = sys_Shutdown;
         retVal  = SHUTDOWN;
 
@@ -3018,6 +3297,105 @@ systemStatus setSystemStatus(void)
         {
             buttonOnOff         = false;
             currentButtonOnOff  = buttonOnOff;
+
+            // check all on-line TCUs for errors and make event log for them
+            for(uint32_t i = MIN_TEC_ADDRESS; i <= MAX_TEC_ADDRESS; i++)
+            {
+                // REMOVE me
+                #ifdef __DEBUG_VIA_SERIAL__
+                Serial.println("checking if TEC is online");
+                #endif
+                
+                // check the TCUs that are on-line
+                if( (offline != sysStates.tec[(i - MIN_TEC_ADDRESS)].online) )
+                {
+                  deviceType = hwVersion = fwVersion = serialNumber = 0;
+                  deviceStatus = errNumber = errInstance = errParameter = 0;
+
+                  // REMOVE me
+                  #ifdef __DEBUG_VIA_SERIAL__
+                  Serial.println("getting TEC info");
+                  #endif
+
+
+                  if( (getTECInfo(i, &deviceType, &hwVersion, &fwVersion,
+                      &serialNumber, &deviceStatus, &errNumber, &errInstance, &errParameter)) )
+                  {
+                    // REMOVE me
+                    #ifdef __DEBUG_VIA_SERIAL__
+                    Serial.println("got TEC info");
+                    #endif
+                                       
+                    if( (0 != errNumber) )
+                    {
+                      // REMOVE me
+                      #ifdef __DEBUG_VIA_SERIAL__
+                      Serial.println("TEC has error");
+                      #endif
+                      
+                      clrEventLogEntry(&event);
+                      event.id  = (i << 16) | TECErrorInfo;
+                      event.ts  = tstamp;
+                      event.data[0] = serialNumber;
+                      event.data[1] = deviceStatus;
+                      event.data[2] = errNumber;
+                      event.data[3] = errInstance;
+                      event.data[4] = errParameter;
+                      addEventLogEntry(&event);
+                    }
+                  }
+                } else
+                {
+                  // REMOVE me
+                  #ifdef __DEBUG_VIA_SERIAL__
+                  Serial.println("TEC is offline");
+                  #endif
+                }
+            }
+
+            // humidity un-reachable - high humidity handle elsewhere
+            if( (offline == sysStates.sensor.online) )
+            {
+              // REMOVE me
+              #ifdef __DEBUG_VIA_SERIAL__
+              Serial.println("logged sensor offlline");
+              #endif
+              
+              clrEventLogEntry(&event);
+              event.id  = HumiditySensorOffline;
+              event.ts  = tstamp;
+              addEventLogEntry(&event);
+            }
+
+            // chiller not on-line ( or has become un-reachable )
+            if( (offline == sysStates.chiller.online) )
+            {
+              // REMOVE me
+              #ifdef __DEBUG_VIA_SERIAL__
+              Serial.println("logged chiller offlline");
+              #endif
+              
+              clrEventLogEntry(&event);
+              event.id  = ChillerOffline;
+              event.ts  = tstamp;
+              addEventLogEntry(&event);
+            }
+
+            // chiller is not running
+            if( (running != sysStates.chiller.state) )
+            {
+              // REMOVE me
+              #ifdef __DEBUG_VIA_SERIAL__
+              Serial.println("logged chiller not running");
+              #endif
+              
+              clrEventLogEntry(&event);
+              event.id  = ChillerNotRunning;
+              event.ts  = tstamp;
+              addEventLogEntry(&event);
+            }
+
+
             shutDownSys(false);
         }
 
@@ -3246,6 +3624,11 @@ void initSystem(void)
     // initialize the RTC
     //
     Controllino_RTC_init();
+
+    //
+    // initialize the event log
+    //
+    clrEventLog();
     
     //
     // let the Serial port settle after initButton()

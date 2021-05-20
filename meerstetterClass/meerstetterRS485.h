@@ -141,7 +141,8 @@ class meerstetterRS485
     bool TECPresent(uint8_t);
     bool SetTECTemp(uint8_t, float);
     bool GetTECTemp(uint8_t, float*, float*);
-    bool GetTECInfo(uint8_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+    bool GetTECInfo(uint8_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*,
+                    uint32_t*, uint32_t*, uint32_t*, uint32_t*);
 
     protected:
     //SoftwareSerial  RS485Serial;

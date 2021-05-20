@@ -367,7 +367,8 @@ uint16_t controlProtocol::Make_getTECObjTemperatureResp(uint16_t Address, uint8_
 
 uint16_t controlProtocol::Make_getTECInfoMsgResp(uint16_t Address, uint8_t* pBuff, uint16_t tec_address,
         uint16_t result, uint32_t deviceType, uint32_t hwVersion, uint32_t fwVersion,
-        uint32_t serialNumber, uint16_t SeqNum)
+        uint32_t serialNumber, uint32_t deviceStatus, uint32_t errNumber, uint32_t errInstance,
+        uint32_t errParameter, uint16_t SeqNum)
 {
     getTECInfoMsgResp_t* msg = reinterpret_cast<getTECInfoMsgResp_t*>(pBuff);
     uint16_t CRC = 0;
@@ -384,6 +385,10 @@ uint16_t controlProtocol::Make_getTECInfoMsgResp(uint16_t Address, uint8_t* pBuf
     msg->hwVersion              = htonl(hwVersion);
     msg->fwVersion              = htonl(fwVersion);
     msg->serialNumber           = htonl(serialNumber);
+    msg->deviceStatus           = htonl(deviceStatus);
+    msg->errNumber              = htonl(errNumber);
+    msg->errInstance            = htonl(errInstance);
+    msg->errParameter           = htonl(errParameter);
 
     // calculate the CRC
     CRC = calcCRC16(pBuff,  len_getTECInfoMsgResp_t);
@@ -669,6 +674,99 @@ uint16_t controlProtocol::Make_shutDownCmdResp(uint16_t Address, uint8_t* pBuff,
 }
 
 
+uint16_t controlProtocol::Make_clrEventLogCmdResp(uint16_t Address, uint8_t* pBuff, uint16_t result, uint16_t SeqNum)
+{
+    clrEventLogCmdResp_t*  msg  = reinterpret_cast<clrEventLogCmdResp_t*>(pBuff);
+    uint16_t        CRC  = 0;
+
+
+    // create the clrEventLogCmdResp message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(clrEventLogCmdResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = clrEventLogCmdResp;
+
+    // set the result
+    msg->result             = htons(result);
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff, len_clrEventLogCmdResp_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(clrEventLogCmdResp_t));
+}
+
+
+uint16_t controlProtocol::Make_getEventLogCmdResp(uint16_t Address, uint8_t* pBuff,
+                      uint16_t result, const elogentry* eventlog, uint16_t SeqNum)
+{
+    getEventLogCmdResp_t*  msg  = reinterpret_cast<getEventLogCmdResp_t*>(pBuff);
+    uint16_t        CRC  = 0;
+
+
+    // create the getEventLogCmdResp message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(getEventLogCmdResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = getEventLogCmdResp;
+
+    // set the result
+    msg->result                 = htons(result);
+
+    // set the eventlog in the message
+    for(uint8_t i = 0; i < MAX_ELOG_ENTRY; i++)
+      msg->eventlog[i] =  eventlog[i];    // can we do struct copy in Arduino ?
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff, len_getEventLogCmdResp_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getEventLogCmdResp_t));
+}
+
+
+uint16_t controlProtocol::Make_getTempCmdResp(uint16_t Address, uint8_t* pBuff,
+                      uint16_t temp, uint16_t SeqNum)
+{
+    getTempCmdResp_t*  msg  = reinterpret_cast<getTempCmdResp_t*>(pBuff);
+    uint16_t        CRC  = 0;
+
+
+    // create the getTempCmdResp message in pBuff and CRC16 checksum it
+    msg->header.control         = RESPONSE;
+    msg->header.length          = sizeof(getTempCmdResp_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = SeqNum;
+    msg->header.msgNum          = getTempCmdResp;
+
+    // set the temp
+    msg->temp                  = temp;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff, len_getTempCmdResp_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getTempCmdResp_t));
+}
+
+
 bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
 {
     bool retVal             = false;
@@ -781,30 +879,56 @@ bool controlProtocol::RxCommandSerial(uint16_t TimeoutMs)
     return(retVal);
 }
 
-
-bool controlProtocol::TxResponseSerial(uint16_t length)
+#define MAX_BYTES_PER_WRITE  8
+bool controlProtocol::TxResponseSerial(int16_t length)
 {
     bool    retVal  = true;
-    uint8_t lenWritten;
+    int16_t lenWritten;
+    int16_t local_lenWritten  = 0;
+    int16_t local_length      = length;
+    int16_t save_length       = length;
+    int8_t  idx = 0;
 
     // class member Buff is filled in by the member functions
-    lenWritten = Serial1.write(m_buff, length);
-    Serial1.flush();
-
-    if( (lenWritten != length) )
+    do
     {
-        #ifdef __DEBUG_HUBER_ERROR__
+      if( (length > MAX_BYTES_PER_WRITE) )
+      {
+        // send in 8 byte chunks
+        local_length = MAX_BYTES_PER_WRITE;
+      } else
+      {
+        local_length  = length;
+      }
+
+      lenWritten = Serial1.write(&m_buff[idx], local_length);
+      Serial.flush();
+
+      if( (lenWritten != local_length) )
+      {
+        retVal  = false;
+        break;  // handle failure below
+      }
+
+      idx     += lenWritten;
+      length  -= lenWritten;
+      delay(10);
+
+    } while( 0 < length );
+
+    if( (false == retVal) )
+    {
+        #ifdef __DEBUG_CONTROL_ERROR__
         Serial.flush();
         Serial.println("TxCommand failed");
         #endif
-        retVal  = false;
     #ifdef __DEBUG_CONTROL_PKT_TX__
     } else
     {
         Serial.flush();
         Serial.print(__PRETTY_FUNCTION__);
         Serial.print(" sent: ");
-        for(int i = 0; i < length; i++)
+        for(int i = 0; i < save_length; i++)
         {
             Serial.print(reinterpret_cast<uint8_t>(m_buff[i]), HEX);
             Serial.print(" ");
@@ -1086,7 +1210,7 @@ bool controlProtocol::RxResponseUSB(uint16_t timeout)
 {
 #if defined(__USING_LINUX_USB__)
     uint32_t        nbytes  = 0;
-    uint32_t        length;
+    int32_t        length;
     uint8_t*        bufptr;
     msgHeader_t*    pmsgHeader;
     struct  termios options;
@@ -2656,7 +2780,8 @@ bool controlProtocol::DisableTECs(uint16_t destAddress)
 
 
 bool controlProtocol::GetTECInfo(uint16_t destAddress, uint16_t tec_address,
-                    uint32_t* deviceType, uint32_t* hwVersion, uint32_t* fwVersion, uint32_t* serialNum)
+                    uint32_t* deviceType, uint32_t* hwVersion, uint32_t* fwVersion, uint32_t* serialNum,
+                    uint32_t* deviceStatus, uint32_t* errNumber, uint32_t* errInstance, uint32_t* errParameter)
 {
     bool                retVal  = false;
     uint16_t            seqNum;
@@ -2732,7 +2857,9 @@ bool controlProtocol::GetTECInfo(uint16_t destAddress, uint16_t tec_address,
             //
             // report the health
             //
-            Parse_getTECInfoMsgResp(m_buff, &result, deviceType, hwVersion, fwVersion, serialNum, &seqNum);
+            Parse_getTECInfoMsgResp(m_buff, &result, deviceType, hwVersion,
+                fwVersion, serialNum, deviceStatus, errNumber, errInstance,
+                errParameter, &seqNum);
 
             #ifdef __DEBUG_CTRL_PROTO__
             printf("found in packet result %d, deviceType 0x%02X, hwVersion 0x%02X, fwVersion 0x%02X, \
@@ -3172,6 +3299,305 @@ bool controlProtocol::GetRTCCmd(uint16_t destAddress, struct tm* ltime)
     } else
     {
         fprintf(stderr, "%s ERROR: unable to Make_getRTCCMD\n", __PRETTY_FUNCTION__);
+    }
+
+    return(retVal);
+}
+
+
+bool controlProtocol::ClrEventLogCmd(uint16_t destAddress)
+{
+    bool                retVal  = false;
+    uint16_t            seqNum;
+    uint16_t            result;
+    msgHeader_t*        pMsgHeader;
+    clrEventLogCmdResp_t*   pclrEventLogCmdResp;
+
+
+    //
+    // increment the sequence number for this transaction
+    //
+    ++m_seqNum;
+
+    if( (doTxCommand(Make_clrEventLogCmd(destAddress, m_buff))) )
+    {
+        //
+        // save the seqNum
+        //
+        pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+        seqNum  = pMsgHeader->seqNum;
+
+        // get the return packet
+        if( (doRxResponse(COMM_TIMEOUT)) )
+        {
+            #ifdef __DEBUG_CTRL_PROTO__
+            //
+            // dump out what we got
+            //
+            for(uint16_t i = 0; i < sizeof(clrEventLogCmdResp_t); i++)
+            {
+                printf("0x%02X ", m_buff[i]);
+            }
+            printf("\n");
+            #endif
+
+            //
+            // check got the expected message number
+            //
+            pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+            if( (clrEventLogCmdResp != pMsgHeader->msgNum) )
+            {
+                fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
+                    __PRETTY_FUNCTION__, pMsgHeader->msgNum);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+            //
+            // cast into the buffer, pick up the CRC
+            //
+            pclrEventLogCmdResp = reinterpret_cast<clrEventLogCmdResp_t*>(m_buff);
+
+            //
+            // verify seqNum and CRC
+            //
+            if( !(verifyMessage(len_clrEventLogCmdResp_t, ntohs(pclrEventLogCmdResp->crc),
+                                        seqNum, ntohs(pclrEventLogCmdResp->eop))) )
+            {
+                // TODO: drop the packet
+                fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
+                        __PRETTY_FUNCTION__);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+
+            //
+            // report the health
+            //
+            Parse_clrEventLogCmdResp(m_buff, &result, &seqNum);
+
+            #ifdef __DEBUG_CTRL_PROTO__
+            printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
+
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
+        } else
+        {
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+        }
+
+    } else
+    {
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+    }
+
+    return(retVal);
+}
+
+
+bool controlProtocol::GetEventLogCmd(uint16_t destAddress, elogentry* eventlog)
+{
+    bool                retVal  = false;
+    uint16_t            seqNum;
+    uint16_t            result;
+    msgHeader_t*        pMsgHeader;
+    getEventLogCmdResp_t*   pgetEventLogCmdResp;
+
+
+    //
+    // increment the sequence number for this transaction
+    //
+    ++m_seqNum;
+
+    if( (doTxCommand(Make_getEventLogCmd(destAddress, m_buff))) )
+    {
+        //
+        // save the seqNum
+        //
+        pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+        seqNum  = pMsgHeader->seqNum;
+
+        // get the return packet
+        if( (doRxResponse(COMM_TIMEOUT)) )
+        {
+            #ifdef __DEBUG_CTRL_PROTO__
+            //
+            // dump out what we got
+            //
+            for(uint16_t i = 0; i < sizeof(getEventLogCmdResp_t); i++)
+            {
+                printf("0x%02X ", m_buff[i]);
+            }
+            printf("\n");
+            #endif
+
+            //
+            // check got the expected message number
+            //
+            pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+            if( (getEventLogCmdResp != pMsgHeader->msgNum) )
+            {
+                fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
+                    __PRETTY_FUNCTION__, pMsgHeader->msgNum);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+            //
+            // cast into the buffer, pick up the CRC
+            //
+            pgetEventLogCmdResp = reinterpret_cast<getEventLogCmdResp_t*>(m_buff);
+
+            //
+            // verify seqNum and CRC
+            //
+            if( !(verifyMessage(len_getEventLogCmdResp_t, ntohs(pgetEventLogCmdResp->crc),
+                                        seqNum, ntohs(pgetEventLogCmdResp->eop))) )
+            {
+                // TODO: drop the packet
+                fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
+                        __PRETTY_FUNCTION__);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+
+            //
+            // report the health
+            //
+            Parse_getEventLogCmdResp(m_buff, &result, eventlog, &seqNum);
+
+            #ifdef __DEBUG_CTRL_PROTO__
+            printf("found in packet result %d seqNumer 0x%02x\n", result, seqNum);
+            #endif
+
+            if( (result) )
+                retVal  = true;
+            else
+                retVal  = false;
+        } else
+        {
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+        }
+
+    } else
+    {
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
+    }
+
+    return(retVal);
+}
+
+
+bool controlProtocol::GetTempCmd(uint16_t destAddress, uint16_t* temp)
+{
+    bool                retVal  = false;
+    uint16_t            seqNum;
+    msgHeader_t*        pMsgHeader;
+    getTempCmdResp_t*   pgetTempCmdResp;
+
+
+    //
+    // increment the sequence number for this transaction
+    //
+    ++m_seqNum;
+
+    if( (doTxCommand(Make_getTempCmd(destAddress, m_buff))) )
+    {
+        //
+        // save the seqNum
+        //
+        pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+        seqNum  = pMsgHeader->seqNum;
+
+        // get the return packet
+        if( (doRxResponse(COMM_TIMEOUT)) )
+        {
+            #ifdef __DEBUG_CTRL_PROTO__
+            //
+            // dump out what we got
+            //
+            for(uint16_t i = 0; i < sizeof(getTempCmdResp_t); i++)
+            {
+                printf("0x%02X ", m_buff[i]);
+            }
+            printf("\n");
+            #endif
+
+            //
+            // check got the expected message number
+            //
+            pMsgHeader = reinterpret_cast<msgHeader_t*>(m_buff);
+            if( (getTempCmdResp != pMsgHeader->msgNum) )
+            {
+                fprintf(stderr, "ERROR: %s got unexpected msg %hu\n",
+                    __PRETTY_FUNCTION__, pMsgHeader->msgNum);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+            //
+            // cast into the buffer, pick up the CRC
+            //
+            pgetTempCmdResp = reinterpret_cast<getTempCmdResp_t*>(m_buff);
+
+            //
+            // verify seqNum and CRC
+            //
+            if( !(verifyMessage(len_getTempCmdResp_t, ntohs(pgetTempCmdResp->crc),
+                                        seqNum, ntohs(pgetTempCmdResp->eop))) )
+            {
+                // TODO: drop the packet
+                fprintf(stderr, "ERROR: %s CRC bad, seqNum mismatch, or wrong address\n",
+                        __PRETTY_FUNCTION__);
+
+                //
+                // no need to continue processing
+                //
+                return(false);
+            }
+
+
+            //
+            // report the health
+            //
+            Parse_getTempCmdResp(m_buff, temp, &seqNum);
+
+            #ifdef __DEBUG_CTRL_PROTO__
+            printf("found in packet temp %d seqNumer 0x%02x\n", temp, seqNum);
+            #endif
+
+            if( (temp) )
+                retVal  = true;
+            else
+                retVal  = false;
+        } else
+        {
+            fprintf(stderr, "%s ERROR: did not get a m_buffer back\n", __PRETTY_FUNCTION__);
+        }
+
+    } else
+    {
+        fprintf(stderr, "%s ERROR: unable to Make_getStatus\n", __PRETTY_FUNCTION__);
     }
 
     return(retVal);
@@ -3688,7 +4114,8 @@ uint16_t controlProtocol::Make_getTECInfoMsg(uint16_t Address, uint8_t* pBuff, u
 
 
 void controlProtocol::Parse_getTECInfoMsgResp(uint8_t* m_buff, uint16_t* result, uint32_t* deviceType,
-        uint32_t* hwVersion, uint32_t* fwVersion, uint32_t* serialNumber, uint16_t* pSeqNum)
+        uint32_t* hwVersion, uint32_t* fwVersion, uint32_t* serialNumber,
+        uint32_t* deviceStatus, uint32_t* errNumber, uint32_t* errInstance, uint32_t* errParameter, uint16_t* pSeqNum)
 {
     getTECInfoMsgResp_t* pResponse = reinterpret_cast<getTECInfoMsgResp_t*>(m_buff);
 
@@ -3698,6 +4125,11 @@ void controlProtocol::Parse_getTECInfoMsgResp(uint8_t* m_buff, uint16_t* result,
     *hwVersion      = pResponse->hwVersion;
     *fwVersion      = pResponse->fwVersion;
     *serialNumber   = pResponse->serialNumber;
+    *deviceStatus   = pResponse->deviceStatus;
+    *errNumber      = pResponse->errNumber;
+    *errInstance    = pResponse->errInstance;
+    *errParameter   = pResponse->errParameter;
+
     *pSeqNum        = pResponse->header.seqNum;
 }
 
@@ -4023,6 +4455,119 @@ void controlProtocol::Parse_getChillerInfoResp(uint8_t* m_buff, uint16_t* result
         (length < MAX_CHILLER_INFO_LENGTH ? length : MAX_CHILLER_INFO_LENGTH)); 
 
     *pSeqNum    = pResponse->header.seqNum;
+}
+
+
+uint16_t controlProtocol::Make_clrEventLogCmd(uint16_t Address, uint8_t* pBuff)
+{
+    clrEventLogCmd_t*    msg  = reinterpret_cast<clrEventLogCmd_t*>(pBuff);
+    uint16_t      CRC  = 0;
+
+
+    memset(m_buff, '\0', MAX_BUFF_LENGTH_CP + 1);
+    // create the clrEventLogCmd message in pBuff and CRC16 checksum it
+    msg->header.control         = COMMAND;
+    msg->header.length          = sizeof(clrEventLogCmd_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = m_seqNum;
+    msg->header.msgNum          = clrEventLogCmd;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_clrEventLogCmd_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(clrEventLogCmd_t));
+}
+
+
+
+void controlProtocol::Parse_clrEventLogCmdResp(uint8_t* m_buff, uint16_t* result, uint16_t* pSeqNum)
+{
+    clrEventLogCmdResp_t* pResponse = reinterpret_cast<clrEventLogCmdResp_t*>(m_buff);
+
+
+    *result     = ntohs(pResponse->result);
+    *pSeqNum    = pResponse->header.seqNum;
+}
+
+
+uint16_t controlProtocol::Make_getEventLogCmd(uint16_t Address, uint8_t* pBuff)
+{
+    getEventLogCmd_t*    msg  = reinterpret_cast<getEventLogCmd_t*>(pBuff);
+    uint16_t      CRC  = 0;
+
+
+    memset(m_buff, '\0', MAX_BUFF_LENGTH_CP + 1);
+    // create the getEventLogCmd message in pBuff and CRC16 checksum it
+    msg->header.control         = COMMAND;
+    msg->header.length          = sizeof(getEventLogCmd_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = m_seqNum;
+    msg->header.msgNum          = getEventLogCmd;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_getEventLogCmd_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getEventLogCmd_t));
+}
+
+
+void controlProtocol::Parse_getEventLogCmdResp(uint8_t* m_buff, uint16_t* result, elogentry* eventlog, uint16_t* pSeqNum)
+{
+    getEventLogCmdResp_t* pResponse = reinterpret_cast<getEventLogCmdResp_t*>(m_buff);
+
+
+    *result     = ntohs(pResponse->result);
+    *pSeqNum    = pResponse->header.seqNum;
+    memcpy(eventlog, pResponse->eventlog, sizeof(elogentry) * MAX_ELOG_ENTRY);
+}
+
+
+uint16_t controlProtocol::Make_getTempCmd(uint16_t Address, uint8_t* pBuff)
+{
+    getTempCmd_t* msg  = reinterpret_cast<getTempCmd_t*>(pBuff);
+    uint16_t      CRC  = 0;
+
+
+    memset(m_buff, '\0', MAX_BUFF_LENGTH_CP + 1);
+    // create the getTempCmd message in pBuff and CRC16 checksum it
+    msg->header.control         = COMMAND;
+    msg->header.length          = sizeof(getTempCmd_t);
+    msg->header.address.address = htons(Address);
+    msg->header.seqNum          = m_seqNum;
+    msg->header.msgNum          = getTempCmd;
+
+    // calculate the CRC
+    CRC = calcCRC16(pBuff,  len_getTempCmd_t);
+
+    // put the CRC
+    msg->crc                = htons(CRC);   // TODO: need htons ?
+
+    // put the end of transmission byte
+    msg->eop                = htons(EOP_VAL);
+
+    return(sizeof(getTempCmd_t));
+}
+
+
+void controlProtocol::Parse_getTempCmdResp(uint8_t* m_buff, uint16_t* temp, uint16_t* pSeqNum)
+{
+    getTempCmdResp_t* pResponse = reinterpret_cast<getTempCmdResp_t*>(m_buff);
+
+
+    *temp     = ntohs(pResponse->temp);
+    *pSeqNum  = pResponse->header.seqNum;
 }
 
 

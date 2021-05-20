@@ -27,9 +27,13 @@ typedef bool (controlProtocol::*pGetChillerTemperature_t)(uint16_t, float*);
 typedef bool (controlProtocol::*pGetChillerObjTemperature_t)(uint16_t, float*);
 typedef bool (controlProtocol::*pEnableTECs_t)(uint16_t);
 typedef bool (controlProtocol::*pDisableTECs_t)(uint16_t);
-typedef bool (controlProtocol::*pGetTECInfo_t)(uint16_t, uint16_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+typedef bool (controlProtocol::*pGetTECInfo_t)(uint16_t, uint16_t, uint32_t*, uint32_t*,
+                      uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
 typedef bool (controlProtocol::*pSetRTCCmd_t)(uint16_t);
 typedef bool (controlProtocol::*pGetRTCCmd_t)(uint16_t, struct tm*);
+typedef bool (controlProtocol::*pClrEventLogCmd_t)(uint16_t);
+typedef bool (controlProtocol::*pGetEventLogCmd_t)(uint16_t, elogentry*);
+typedef bool (controlProtocol::*pGetTempCmd_t)(uint16_t, uint16_t*);
 
 
 class menuItemBase
@@ -551,12 +555,14 @@ class menuGetTECInfo : public menuItemBase
     void execute(controlProtocol* pCP)
     {
         if( (pCP->*m_pGetTECInfo)(m_destId, tec_address, &deviceType, &hwVersion,
-                                &fwVersion, &serialNum) )
+                    &fwVersion, &serialNum, &deviceStatus, &errNumber, &errInstance, &errParameter) )
         {
-            cout << "\ndeviceType: " << deviceType <<
-                    " hwVersion: " << hwVersion <<
-                    " fwVersion: " << fwVersion <<
-                    " serialNum: " << serialNum << endl;
+          printf("\ndeviceType: %" PRIu32 " hwVersion: %" PRIu32 " fwVersion: %" PRIu32 " serialNum: %" PRIu32 "\n",
+            htons(deviceType), htons(hwVersion), htons(fwVersion), htons(serialNum));
+
+          printf("deviceStatus: %" PRIu32 " errNumber: %" PRIu32 " errInstance: %" PRIu32 " errParameter: %" PRIu32 "\n",
+            htons(deviceStatus), htons(errNumber), htons(errInstance), htons(errParameter));
+
         } else
         {
             cout << "\nget TEC info failed" << endl;
@@ -568,6 +574,10 @@ class menuGetTECInfo : public menuItemBase
     uint32_t hwVersion;
     uint32_t fwVersion;
     uint32_t serialNum;
+    uint32_t deviceStatus;
+    uint32_t errNumber;
+    uint32_t errInstance;
+    uint32_t errParameter;
     
     private:
     menuGetTECInfo(const menuItemBase&);
@@ -582,7 +592,7 @@ class menuSetRTCCmd : public menuItemBase
     pSetRTCCmd_t m_pSetRTCCmd;
 
     menuSetRTCCmd()
-        :   menuItemBase("set RTC clock", "set the RTC clock"),
+        :   menuItemBase("set clock", "set the clock"),
             m_pSetRTCCmd(&controlProtocol::SetRTCCmd) {}
 
     void execute(controlProtocol* pCP)
@@ -606,7 +616,7 @@ class menuGetRTCCmd : public menuItemBase
     pGetRTCCmd_t m_pGetRTCCmd;
 
     menuGetRTCCmd()
-        :   menuItemBase("get RTC clock", "get the RTC clock"),
+        :   menuItemBase("get clock", "get the clock"),
             m_pGetRTCCmd(&controlProtocol::GetRTCCmd) {}
 
     void execute(controlProtocol* pCP)
@@ -626,6 +636,192 @@ class menuGetRTCCmd : public menuItemBase
 
     menuGetRTCCmd(const menuItemBase&);
     menuGetRTCCmd& operator=(const menuItemBase&);
+};
+
+
+// bool    CleEventLogCmd(uint16_t);
+class menuClrEventLogCmd : public menuItemBase
+{
+    public:
+    pClrEventLogCmd_t m_pClrEventLogCmd  = &controlProtocol::ClrEventLogCmd;
+
+    menuClrEventLogCmd()
+        :   menuItemBase("clear eventlog", "clear the eventlog"),
+            m_pClrEventLogCmd(&controlProtocol::ClrEventLogCmd) {}
+
+    void execute(controlProtocol* pCP)
+    {
+        if( (pCP->*m_pClrEventLogCmd)(m_destId) )
+            cout << "\nclear event log  successful" << endl;
+        else
+            cout << "\nclear event log failed" << endl;
+    }
+    
+    private:
+    menuClrEventLogCmd(const menuItemBase&);
+    menuClrEventLogCmd& operator=(const menuItemBase&);
+};
+
+
+class menuGetEventLogCmd : public menuItemBase
+{
+    public:
+    pGetEventLogCmd_t m_pGetEventLogCmd  = &controlProtocol::GetEventLogCmd;
+
+    menuGetEventLogCmd()
+        :   menuItemBase("get eventlog", "get the eventlog"),
+            m_pGetEventLogCmd(&controlProtocol::GetEventLogCmd) {}
+
+    void execute(controlProtocol* pCP)
+    {
+      memset(&eventlog, '\0', sizeof(eventlog));
+
+      if( (pCP->*m_pGetEventLogCmd)(m_destId, &eventlog[0]) )
+      {
+        //
+        // simple decode of the event log entries
+        //
+        for(int i = 0; i < MAX_ELOG_ENTRY; i++)
+        {
+          // get the time stamp
+          ltime.tm_sec  = eventlog[i].ts.sec;
+          ltime.tm_min  = eventlog[i].ts.min;
+          ltime.tm_hour = eventlog[i].ts.hour + 1;
+          ltime.tm_mon  = eventlog[i].ts.mon;
+          ltime.tm_year = eventlog[i].ts.year + 101;
+          ltime.tm_wday = eventlog[i].ts.wday;
+          ltime.tm_mday = eventlog[i].ts.mday;
+
+          // get the id and the instance
+          id  = eventlog[i].id & 0x0000ffff;
+          inst  = (eventlog[i].id  >> 16) & 0x0000ffff;
+          memset(time_buff, '\0', sizeof(time_buff));
+          asctime_r(&ltime, time_buff);
+          time_buff[strlen(time_buff) - 1] = 0; // rid of the \n at the end
+          
+          switch(id)
+          {
+            case TECNotOnLine:
+            {
+              printf("%-26s : %-18s TCU %u not on line\n",
+                time_buff, "TCUNotOnLine", inst);
+              break;
+            }
+            case TECNotRunning:
+            {
+              printf("%-26s : %-18s TCU %u not running\n",
+                time_buff, "TCUNotRunning", inst);
+              break;
+            }
+            case TECIsMismatch:
+            {
+              printf("%-26s : %-18s TCU %u state mismatch\n",
+                time_buff, "TCUIsMismatch", inst);
+
+              break;
+            }
+            case TECErrorInfo:
+            {
+              printf("%-26s : %-18s TCU %u serial: %" PRIu32 " status: %" PRIu32 " errNum: %" PRIu32 " errInst: %" PRIu32 " errParam: %" PRIu32 "\n",
+                time_buff, "TCUErrorInfo", inst, htons(eventlog[i].data[0]),
+                htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
+                htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));
+
+              break;
+            }
+            case HumiditySensorOffline:
+            {
+              printf("%-26s : %-18s humidity sensor offline\n",
+                time_buff, "HumidityOffline");
+
+              break;
+            }
+            case HumidityHigh:
+            {
+              printf("%-26s : %-18s humidity high\n",
+                time_buff, "HumidityHigh");
+
+              break;
+            }
+            case ChillerOffline:
+            {
+              printf("%-26s : %-18s chiller offline\n",
+                time_buff, "ChillerOffline");
+
+              break;
+            }
+            case ChillerNotRunning:
+            {
+              printf("%-26s : %-18s chiller not running\n",
+                time_buff, "ChillerNotRunning");
+
+              break;
+            }
+            default:
+            {
+              // show the bytes
+              printf("%-26s : %-18s Id: %" PRIu32 " data[0] %" PRIu32 " data[1] %" PRIu32 " data[2] %" PRIu32 " data[3] %" PRIu32 " data[4] %" PRIu32 "\n",
+                time_buff, "no event", inst, htons(eventlog[i].data[0]),
+                htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
+                htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));
+              break;
+            }
+          }
+        }
+
+      }
+      else
+        cout << "\nfailed to get event log" << endl;
+    }
+    
+    private:
+    elogentry eventlog[MAX_ELOG_ENTRY];
+    timeind*  pTimeStamp;
+    struct tm ltime;
+    uint16_t  id;       // chiller, TCU, humidity sensor
+    uint16_t  inst;     // in case of TCU is the TCU number
+    char      time_buff[30];
+
+
+
+    menuGetEventLogCmd(const menuItemBase&);
+    menuGetEventLogCmd& operator=(const menuItemBase&);
+};
+
+// bool    GetRTCCmd(uint16_t);
+class menuGetTempCmd : public menuItemBase
+{
+    public:
+    pGetTempCmd_t m_pGetTempCmd;
+
+    menuGetTempCmd()
+        :   menuItemBase("get ambient temp", "get the ambient temperature"),
+            m_pGetTempCmd(&controlProtocol::GetTempCmd) {}
+
+    void execute(controlProtocol* pCP)
+    {
+        if( (pCP->*m_pGetTempCmd)(m_destId, &temp) )
+        {
+            base      = temp & 0x00ff;
+            fraction  = (temp & 0xff00) >> 8;
+            ftemp     = base + (((float)(fraction))/100);
+            printf("temperature (celcius) : %.2f\n", ftemp);
+        }
+        else
+        {
+            printf("get temperature failed\n");
+        }
+    }
+    
+    private:
+    uint16_t  temp      = 0;
+    uint16_t  base      = 0;
+    uint16_t  fraction  = 0;
+    float     ftemp     = 0;
+
+
+    menuGetTempCmd(const menuItemBase&);
+    menuGetTempCmd& operator=(const menuItemBase&);
 };
 
 #endif

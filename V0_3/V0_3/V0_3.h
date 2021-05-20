@@ -9,7 +9,7 @@
 
 
 // this is for important, error condition debug output
-#define __DEBUG_VIA_SERIAL__
+//#define __DEBUG_VIA_SERIAL__
 
 // this is for frivilous debug output
 //#define __DEBUG2_VIA_SERIAL__
@@ -229,6 +229,11 @@ volatile bool buttonOnOff = false;
 const int FAULT_LED     = 4;
 const int NO_FAULT_LED  = 6;
 
+//
+// globals for logging events
+//
+timeind       tstamp;
+elogentry     event;
 
 //
 // splash screen conents - shown during boot while the system is coming on-line
