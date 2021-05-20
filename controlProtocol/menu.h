@@ -557,10 +557,10 @@ class menuGetTECInfo : public menuItemBase
         if( (pCP->*m_pGetTECInfo)(m_destId, tec_address, &deviceType, &hwVersion,
                     &fwVersion, &serialNum, &deviceStatus, &errNumber, &errInstance, &errParameter) )
         {
-          printf("\ndeviceType: %" PRIu32 " hwVersion: %" PRIu32 " fwVersion: %" PRIu32 " serialNum: %" PRIu32 "\n",
+          printf("\ndeviceType: %zu hwVersion: %zu fwVersion: %zu serialNum: %zu\n",
             htons(deviceType), htons(hwVersion), htons(fwVersion), htons(serialNum));
 
-          printf("deviceStatus: %" PRIu32 " errNumber: %" PRIu32 " errInstance: %" PRIu32 " errParameter: %" PRIu32 "\n",
+          printf("deviceStatus: %zu errNumber: %zu errInstance: %zu errParameter: %zu\n",
             htons(deviceStatus), htons(errNumber), htons(errInstance), htons(errParameter));
 
         } else
@@ -722,7 +722,7 @@ class menuGetEventLogCmd : public menuItemBase
             }
             case TECErrorInfo:
             {
-              printf("%-26s : %-18s TCU %u serial: %" PRIu32 " status: %" PRIu32 " errNum: %" PRIu32 " errInst: %" PRIu32 " errParam: %" PRIu32 "\n",
+              printf("%-26s : %-18s TCU %u serial: %zu status: %zu errNum: %zu errInst: %zu errParam: %zu\n",
                 time_buff, "TCUErrorInfo", inst, htons(eventlog[i].data[0]),
                 htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
                 htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));
@@ -760,7 +760,7 @@ class menuGetEventLogCmd : public menuItemBase
             default:
             {
               // show the bytes
-              printf("%-26s : %-18s Id: %" PRIu32 " data[0] %" PRIu32 " data[1] %" PRIu32 " data[2] %" PRIu32 " data[3] %" PRIu32 " data[4] %" PRIu32 "\n",
+              printf("%-26s : %-18s Id: %zu data[0] %zu data[1] %zu data[2] %zu data[3] %zu data[4] %zu\n",
                 time_buff, "no event", inst, htons(eventlog[i].data[0]),
                 htons(eventlog[i].data[1]), htons(eventlog[i].data[2]),
                 htons(eventlog[i].data[3]), htons(eventlog[i].data[4]));

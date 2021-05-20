@@ -26,7 +26,7 @@ int main(int argc, char** argv)
         return(-1);
     }
     
-    sscanf(argv[2], "%" SCNu16 "", &speed);             // assuming this works
+    sscanf(argv[2], "%u", &speed);             // assuming this works
     printf("trying usb: %s, speed %u\n", argv[1], speed);
     
     #ifdef __USING_WINDOWS_USB__

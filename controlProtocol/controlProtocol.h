@@ -8,8 +8,8 @@
 //#define __DEBUG_CONTROL_PKT_RX__
 
 // platform
-#define __USING_LINUX_USB__
-//#define __USING_WINDOWS_USB__
+//#define __USING_LINUX_USB__
+#define __USING_WINDOWS_USB__
 //#define __RUNNING_ON_CONTROLLINO__
 
 // common
@@ -40,7 +40,7 @@
     #define ntohl(x) htonl(x)
 #endif
 
-#ifndef __RUNNING_ON_CONTROLLINO__
+#ifdef __USING_LINUX_USB__
     #include <string.h>
     #include <unistd.h>
     #include <arpa/inet.h>
@@ -64,6 +64,18 @@
 #ifdef __USING_WINDOWS_USB__
     #include <winsock2.h>
     #include <windows.h>
+
+    #ifndef GET_LOW_NIBBLE
+    #define GET_LOW_NIBBLE
+    typedef union _int_byte 
+    {
+        int intVal;
+        uint8_t byteVal[sizeof(int)];  
+    } int_byte;
+
+    // idea is to return the lowest nibble for Intel processor of arbitrary size int
+    uint8_t get_low_nibble(int); 
+    #endif
 #endif
 
 //
