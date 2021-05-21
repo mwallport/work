@@ -16,10 +16,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
-#include "meerstetterRS485.h"
+#include "kathmandu.h"
 
 
-const uint16_t meerstetterRS485::CRC16_table_C[256] = {
+const uint16_t kathmandu::CRC16_table_C[256] = {
     // CRC-CCIT calculated for every byte between 0x0000 and 0x00FF
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
     0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef,
@@ -55,19 +55,19 @@ const uint16_t meerstetterRS485::CRC16_table_C[256] = {
     0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0
 };
 
-uint16_t meerstetterRS485::LastCRC;
-uint16_t meerstetterRS485::SequenceNr = 5545; //Initialized to random value
-const int8_t meerstetterRS485::cHex[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-int8_t meerstetterRS485::RcvBuf[MEPORT_MAX_RX_BUF_SIZE + 20];
-int32_t meerstetterRS485::RcvCtr = -1;
-char meerstetterRS485::Buffer[MEPORT_MAX_TX_BUF_SIZE];
-int meerstetterRS485::Ctr;
+uint16_t kathmandu::LastCRC;
+uint16_t kathmandu::SequenceNr = 5545; //Initialized to random value
+const int8_t kathmandu::cHex[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+int8_t kathmandu::RcvBuf[MEPORT_MAX_RX_BUF_SIZE + 20];
+int32_t kathmandu::RcvCtr = -1;
+char kathmandu::Buffer[MEPORT_MAX_TX_BUF_SIZE];
+int kathmandu::Ctr;
 //static void TestAllCommonGetFunctions(uint8_t Address);
 //static void TestAllTECGetFunctions(uint8_t Address);
 
 
 // constructor
-meerstetterRS485::meerstetterRS485(uint32_t Speed)
+kathmandu::kathmandu(uint32_t Speed)
 {
     memset(reinterpret_cast<void*>(&stats), '\0', sizeof(stats));
     MeInt_QueryRcvPayload = MeFrame_RcvFrame.Payload;
@@ -79,11 +79,11 @@ meerstetterRS485::meerstetterRS485(uint32_t Speed)
 
 
 // destructor
-meerstetterRS485::~meerstetterRS485() {};
+kathmandu::~kathmandu() {};
 
 
 /*-----( Define Functions )-----*/
-void meerstetterRS485::ComPort_Send(char *in)
+void kathmandu::ComPort_Send(char *in)
 {
     size_t size;
     size_t len = strlen(in);
@@ -120,7 +120,7 @@ void meerstetterRS485::ComPort_Send(char *in)
 }
 
 
-bool meerstetterRS485::recvData(uint32_t TimeoutMs)
+bool kathmandu::recvData(uint32_t TimeoutMs)
 {
     uint8_t Buffer[100];
     bool retVal             = false;
@@ -215,7 +215,7 @@ bool meerstetterRS485::recvData(uint32_t TimeoutMs)
 /** @brief      Reset Device
  *
 */
-uint8_t meerstetterRS485::MeCom_ResetDevice(uint8_t Address)
+uint8_t kathmandu::MeCom_ResetDevice(uint8_t Address)
 {
     return MeInt_Set('#', Address, 2, (int8_t*)"RS");
 }
@@ -225,7 +225,7 @@ uint8_t meerstetterRS485::MeCom_ResetDevice(uint8_t Address)
 /** @brief      Return IF String
  *
 */
-uint8_t meerstetterRS485::MeCom_GetIdentString(uint8_t Address, int8_t *arr)
+uint8_t kathmandu::MeCom_GetIdentString(uint8_t Address, int8_t *arr)
 {
     uint8_t Succeeded = MeInt_Query('#', Address, 3, (int8_t*)"?IF");
     if(Succeeded == 0) 
@@ -256,7 +256,7 @@ uint8_t meerstetterRS485::MeCom_GetIdentString(uint8_t Address, int8_t *arr)
  *  - MeGetLimtis:  Queries the corresponding limits of the parameter
  *
 */
-uint8_t meerstetterRS485::MeCom_ParValuel(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParLongFields  *Fields, MeParCmd Cmd)
+uint8_t kathmandu::MeCom_ParValuel(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParLongFields  *Fields, MeParCmd Cmd)
 {
     if(Cmd == MeGet)
     {
@@ -319,14 +319,14 @@ uint8_t meerstetterRS485::MeCom_ParValuel(uint8_t Address, uint16_t ParId, uint8
  *  This function just calls the INT32 Function.
  *
 */
-uint8_t meerstetterRS485::MeCom_ParValuef(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParFloatFields *Fields, MeParCmd Cmd)
+uint8_t kathmandu::MeCom_ParValuef(uint8_t Address, uint16_t ParId, uint8_t Inst, MeParFloatFields *Fields, MeParCmd Cmd)
 {
     return MeCom_ParValuel(Address, ParId, Inst, (MeParLongFields *)Fields, Cmd);
 }
 /*==============================================================================*/
 /** @file       MeCRC16.c
     @brief      CRC Calculation Type CRC-CCITT (CRC-16)
-    @author     Meerstetter Engineering GmbH: Marc Luethi
+    @author     Kathmandu Engineering GmbH: Marc Luethi
 
     This File provides 2 possibilities to calculate the CRC-Checksum:
     - Function with Table: Is faster, but uses more memory
@@ -340,7 +340,7 @@ uint8_t meerstetterRS485::MeCom_ParValuef(uint8_t Address, uint16_t ParId, uint8
 /** @brief      This function calculates a CRC-CCITT (CRC-16) together with the Table
 
 */
-uint16_t meerstetterRS485::MeCRC16(uint16_t n, uint8_t m)
+uint16_t kathmandu::MeCRC16(uint16_t n, uint8_t m)
 {
     n = ( (n%256) << 8 ) ^ ( CRC16_table_C[ (n >> 8) ^ m ] );
     return (n);
@@ -375,7 +375,7 @@ uint16_t MeCRC16(uint16_t n, uint8_t m)
 /*==============================================================================*/
 /** @file       MeFrame.c
     @brief      This file holds the low level protocol functions
-    @author     Meerstetter Engineering GmbH: Marc Luethi
+    @author     Kathmandu Engineering GmbH: Marc Luethi
 
     Frame send and receiving Functions.
 */
@@ -388,7 +388,7 @@ uint16_t MeCRC16(uint16_t n, uint8_t m)
  *  The Port Send Function receives the start and End of the Frame information.
  *
 */
-void meerstetterRS485::MeFrame_Send(int8_t Control, uint8_t Address, uint32_t Length, uint16_t SeqNr, int8_t *Payload)
+void kathmandu::MeFrame_Send(int8_t Control, uint8_t Address, uint32_t Length, uint16_t SeqNr, int8_t *Payload)
 {
     uint16_t CRC = 0;
     int8_t txc;
@@ -420,7 +420,7 @@ void meerstetterRS485::MeFrame_Send(int8_t Control, uint8_t Address, uint32_t Le
 
     MePort_SendByte(0x0D, MePort_SB_IsLastByte);
 
-    meerstetterRS485::LastCRC = CRC;
+    kathmandu::LastCRC = CRC;
 }
 
 
@@ -435,57 +435,57 @@ void meerstetterRS485::MeFrame_Send(int8_t Control, uint8_t Address, uint32_t Le
  *  the upper level functions.
  *
 */
-void meerstetterRS485::MeFrame_Receive(int8_t in)
+void kathmandu::MeFrame_Receive(int8_t in)
 {
     if(in == '!')
     {
         //Start Indicator --> Reset Receiving Machine
-        memset(meerstetterRS485::RcvBuf, 0, sizeof(meerstetterRS485::RcvBuf));
-        meerstetterRS485::RcvBuf[0] = in;
-        meerstetterRS485::RcvCtr = 1;
+        memset(kathmandu::RcvBuf, 0, sizeof(kathmandu::RcvBuf));
+        kathmandu::RcvBuf[0] = in;
+        kathmandu::RcvCtr = 1;
         
     }
-    else if(in == 0x0D && (meerstetterRS485::RcvCtr >=11))
+    else if(in == 0x0D && (kathmandu::RcvCtr >=11))
     {
         //End of a Frame received
-        if(meerstetterRS485::RcvCtr == 11)
+        if(kathmandu::RcvCtr == 11)
         {
             //Check CRC of received Frame
-            uint16_t RcvCRC = MeVarConv_HexToUs(&meerstetterRS485::RcvBuf[7]);
-            if(RcvCRC == meerstetterRS485::LastCRC && MeFrame_RcvFrame.AckReceived == 0)
+            uint16_t RcvCRC = MeVarConv_HexToUs(&kathmandu::RcvBuf[7]);
+            if(RcvCRC == kathmandu::LastCRC && MeFrame_RcvFrame.AckReceived == 0)
             {
-                MeFrame_RcvFrame.Address    = MeVarConv_HexToUc(&meerstetterRS485::RcvBuf[1]);
-                MeFrame_RcvFrame.SeqNr      = MeVarConv_HexToUs(&meerstetterRS485::RcvBuf[3]);
+                MeFrame_RcvFrame.Address    = MeVarConv_HexToUc(&kathmandu::RcvBuf[1]);
+                MeFrame_RcvFrame.SeqNr      = MeVarConv_HexToUs(&kathmandu::RcvBuf[3]);
                 MeFrame_RcvFrame.AckReceived = 1;
             }
-            else meerstetterRS485::RcvCtr = -1; //Error
+            else kathmandu::RcvCtr = -1; //Error
         }
         else
         {
             //Check CRC of received Frame
             uint16_t RcvCRC, CalcCRC = 0;
-            for(int32_t i=0; i < (meerstetterRS485::RcvCtr-4); i++) CalcCRC = MeCRC16(CalcCRC, meerstetterRS485::RcvBuf[i]); //Calculate CRC of received Frame
-            RcvCRC = MeVarConv_HexToUs(&meerstetterRS485::RcvBuf[meerstetterRS485::RcvCtr-4]); //Get Frame CRC
+            for(int32_t i=0; i < (kathmandu::RcvCtr-4); i++) CalcCRC = MeCRC16(CalcCRC, kathmandu::RcvBuf[i]); //Calculate CRC of received Frame
+            RcvCRC = MeVarConv_HexToUs(&kathmandu::RcvBuf[kathmandu::RcvCtr-4]); //Get Frame CRC
             if(RcvCRC == CalcCRC && MeFrame_RcvFrame.DataReceived == 0)
             {
                 //CRC is correct and all data has been processed
-                MeFrame_RcvFrame.Address    = MeVarConv_HexToUc(&meerstetterRS485::RcvBuf[1]);
-                MeFrame_RcvFrame.SeqNr      = MeVarConv_HexToUs(&meerstetterRS485::RcvBuf[3]);
-                for(int32_t i = 7; i < (meerstetterRS485::RcvCtr-4);  i++)    MeFrame_RcvFrame.Payload[i-7] = meerstetterRS485::RcvBuf[i];
+                MeFrame_RcvFrame.Address    = MeVarConv_HexToUc(&kathmandu::RcvBuf[1]);
+                MeFrame_RcvFrame.SeqNr      = MeVarConv_HexToUs(&kathmandu::RcvBuf[3]);
+                for(int32_t i = 7; i < (kathmandu::RcvCtr-4);  i++)    MeFrame_RcvFrame.Payload[i-7] = kathmandu::RcvBuf[i];
                 MeFrame_RcvFrame.DataReceived = 1;
             }
         }
     }
-    else if(meerstetterRS485::RcvCtr >= 0 && meerstetterRS485::RcvCtr < (MEPORT_MAX_RX_BUF_SIZE+15))
+    else if(kathmandu::RcvCtr >= 0 && kathmandu::RcvCtr < (MEPORT_MAX_RX_BUF_SIZE+15))
     {
         //Write Data to Buffer
-        meerstetterRS485::RcvBuf[RcvCtr] = in;
-        meerstetterRS485::RcvCtr++;
+        kathmandu::RcvBuf[RcvCtr] = in;
+        kathmandu::RcvCtr++;
     }
     else
     {
         //Error 
-        meerstetterRS485::RcvCtr = -1;
+        kathmandu::RcvCtr = -1;
     }
 }
 
@@ -493,7 +493,7 @@ void meerstetterRS485::MeFrame_Receive(int8_t in)
 /*==============================================================================*/
 /** @file       MeInt.c
     @brief      This file holds the connection oriented  protocol functions
-    @author     Meerstetter Engineering GmbH: Marc Luethi
+    @author     Kathmandu Engineering GmbH: Marc Luethi
 
     These Functions do send the given Data down to the Frame level and
     call a wait timeout Function (MePort_SemaphorTake).
@@ -510,9 +510,9 @@ void meerstetterRS485::MeFrame_Receive(int8_t in)
 /** @brief      Connection Function for Query Commands
  *
 */
-uint8_t meerstetterRS485::MeInt_Query(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload)
+uint8_t kathmandu::MeInt_Query(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload)
 {
-    meerstetterRS485::SequenceNr++;
+    kathmandu::SequenceNr++;
 
     int32_t Trials = 3;
     while(Trials > 0)
@@ -520,9 +520,9 @@ uint8_t meerstetterRS485::MeInt_Query(int8_t Control, uint8_t Address, uint32_t 
         Trials--;
         MeFrame_RcvFrame.DataReceived = 0;
         MeFrame_RcvFrame.AckReceived = 0;
-        MeFrame_Send(Control, Address, Length, meerstetterRS485::SequenceNr, Payload);
+        MeFrame_Send(Control, Address, Length, kathmandu::SequenceNr, Payload);
         MePort_SemaphorTake(MEPORT_SET_AND_QUERY_TIMEOUT);
-        if(MeFrame_RcvFrame.DataReceived == 1 && MeFrame_RcvFrame.Address == Address && MeFrame_RcvFrame.SeqNr == meerstetterRS485::SequenceNr )
+        if(MeFrame_RcvFrame.DataReceived == 1 && MeFrame_RcvFrame.Address == Address && MeFrame_RcvFrame.SeqNr == kathmandu::SequenceNr )
         {
             //Correct Data Received -->Check for Error Code
             if(MeFrame_RcvFrame.Payload[0] == '+')
@@ -543,9 +543,9 @@ uint8_t meerstetterRS485::MeInt_Query(int8_t Control, uint8_t Address, uint32_t 
 /** @brief      Connection Function for Set Commands
  *
 */
-uint8_t meerstetterRS485::MeInt_Set(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload)
+uint8_t kathmandu::MeInt_Set(int8_t Control, uint8_t Address, uint32_t Length, int8_t *Payload)
 {
-    meerstetterRS485::SequenceNr++;
+    kathmandu::SequenceNr++;
 
     int32_t Trials = 3;
     while(Trials > 0)
@@ -553,16 +553,16 @@ uint8_t meerstetterRS485::MeInt_Set(int8_t Control, uint8_t Address, uint32_t Le
         Trials--;
         MeFrame_RcvFrame.DataReceived = 0;
         MeFrame_RcvFrame.AckReceived = 0;
-        MeFrame_Send(Control, Address, Length, meerstetterRS485::SequenceNr, Payload);
+        MeFrame_Send(Control, Address, Length, kathmandu::SequenceNr, Payload);
         MePort_SemaphorTake(MEPORT_SET_AND_QUERY_TIMEOUT);
-        if(MeFrame_RcvFrame.DataReceived == 1 && MeFrame_RcvFrame.Address == Address && MeFrame_RcvFrame.SeqNr == meerstetterRS485::SequenceNr &&
+        if(MeFrame_RcvFrame.DataReceived == 1 && MeFrame_RcvFrame.Address == Address && MeFrame_RcvFrame.SeqNr == kathmandu::SequenceNr &&
             MeFrame_RcvFrame.Payload[0] == '+')
         {
             //Server Error code Received
             MePort_ErrorThrow(MeVarConv_HexToUc(&MeFrame_RcvFrame.Payload[1]));
             return 0;
         }
-        else if(MeFrame_RcvFrame.AckReceived == 1 && MeFrame_RcvFrame.Address == Address && MeFrame_RcvFrame.SeqNr == meerstetterRS485::SequenceNr )
+        else if(MeFrame_RcvFrame.AckReceived == 1 && MeFrame_RcvFrame.Address == Address && MeFrame_RcvFrame.SeqNr == kathmandu::SequenceNr )
         {
             //Correct ADC received
             return 1;
@@ -576,7 +576,7 @@ uint8_t meerstetterRS485::MeInt_Set(int8_t Control, uint8_t Address, uint32_t Le
 /*==============================================================================*/
 /** @file       MePort_Linux.c
     @brief      This file holds all interface functions to the MeComAPI
-    @author     Meerstetter Engineering GmbH: Thomas Braun
+    @author     Kathmandu Engineering GmbH: Thomas Braun
 
     Please do only modify these functions to implement the MeComAPI into
     your system. It should not be necessary to modify any files in the
@@ -600,32 +600,32 @@ uint8_t meerstetterRS485::MeInt_Set(int8_t Control, uint8_t Address, uint32_t Le
  *  after the last byte has been sent.
  *
 */
-void meerstetterRS485::MePort_SendByte(int8_t in, MePort_SB FirstLast)
+void kathmandu::MePort_SendByte(int8_t in, MePort_SB FirstLast)
 {
     switch(FirstLast)
     {
         case MePort_SB_IsFirstByte:
             //This is the first Byte of the Message String 
-            meerstetterRS485::Ctr = 0;
-            meerstetterRS485::Buffer[Ctr] = in;
-            meerstetterRS485::Ctr++;
+            kathmandu::Ctr = 0;
+            kathmandu::Buffer[Ctr] = in;
+            kathmandu::Ctr++;
         break;
         case MePort_SB_Normal:
             //These are some middle Bytes
-            if(meerstetterRS485::Ctr < MEPORT_MAX_TX_BUF_SIZE-1)
+            if(kathmandu::Ctr < MEPORT_MAX_TX_BUF_SIZE-1)
             {
-                meerstetterRS485::Buffer[Ctr] = in;
-                meerstetterRS485::Ctr++;
+                kathmandu::Buffer[Ctr] = in;
+                kathmandu::Ctr++;
             }
         break;
         case MePort_SB_IsLastByte:
             //This is the last Byte of the Message String
-            if(meerstetterRS485::Ctr < MEPORT_MAX_TX_BUF_SIZE-1)
+            if(kathmandu::Ctr < MEPORT_MAX_TX_BUF_SIZE-1)
             {
-                meerstetterRS485::Buffer[Ctr] = in;
-                meerstetterRS485::Ctr++;
-                meerstetterRS485::Buffer[Ctr] = 0;
-                meerstetterRS485::Ctr++;
+                kathmandu::Buffer[Ctr] = in;
+                kathmandu::Ctr++;
+                kathmandu::Buffer[Ctr] = 0;
+                kathmandu::Ctr++;
                 ComPort_Send(Buffer);
             }
         break;
@@ -642,7 +642,7 @@ void meerstetterRS485::MePort_SendByte(int8_t in, MePort_SB FirstLast)
  *  It is also Possible to modify the function prototype of this function,
  *  to just receive one single byte. (For example in case of an MCU)
 */
-void meerstetterRS485::MePort_ReceiveByte(int8_t *arr)
+void kathmandu::MePort_ReceiveByte(int8_t *arr)
 {
     while(*arr)
     {
@@ -675,7 +675,7 @@ void meerstetterRS485::MePort_ReceiveByte(int8_t *arr)
  *    and poll the UART interface to check if some bytes have been received.
  *
 */
-void meerstetterRS485::MePort_SemaphorTake(uint32_t TimeoutMs)
+void kathmandu::MePort_SemaphorTake(uint32_t TimeoutMs)
 {
     recvData(TimeoutMs);
 }
@@ -691,7 +691,7 @@ void meerstetterRS485::MePort_SemaphorTake(uint32_t TimeoutMs)
  *  The used lock functions are spezified in the POSIX standard.
  *
 */
-void meerstetterRS485::MePort_SemaphorGive(void)
+void kathmandu::MePort_SemaphorGive(void)
 {
       /*
     pthread_mutex_lock(&Mutex);
@@ -712,7 +712,7 @@ void meerstetterRS485::MePort_SemaphorGive(void)
  *  It is recommended to forward this error Numbers to your error Management system.
  *
 */
-void meerstetterRS485::MePort_ErrorThrow(int32_t ErrorNr)
+void kathmandu::MePort_ErrorThrow(int32_t ErrorNr)
 {
     switch(ErrorNr)
     {
@@ -762,53 +762,53 @@ void meerstetterRS485::MePort_ErrorThrow(int32_t ErrorNr)
 /*==============================================================================*/
 /** @file       VarConvert.c
     @brief      Converts the variables for the communication
-    @author     Meerstetter Engineering GmbH: Marc Luethi
+    @author     Kathmandu Engineering GmbH: Marc Luethi
 
 */
-int8_t meerstetterRS485::MeVarConv_UcToHEX   (uint8_t value)
+int8_t kathmandu::MeVarConv_UcToHEX   (uint8_t value)
 {
     if(value > 0x0F) return 'X';
-    return meerstetterRS485::cHex[value];
+    return kathmandu::cHex[value];
 }
 
 
 /*======================================================================*/
-uint8_t meerstetterRS485::MeVarConv_HexToDigit(int8_t *arr)
+uint8_t kathmandu::MeVarConv_HexToDigit(int8_t *arr)
 {
     return HEXtoNR(*arr);
 }
 
 
 /*======================================================================*/
-uint8_t meerstetterRS485::MeVarConv_HexToUc   (int8_t *arr)
+uint8_t kathmandu::MeVarConv_HexToUc   (int8_t *arr)
 {
     return (HEXtoNR(*arr)*16) + HEXtoNR(*(arr+1));
 }
 
 
 /*======================================================================*/
-int8_t  meerstetterRS485::MeVarConv_HexToSc   (int8_t *arr)
+int8_t  kathmandu::MeVarConv_HexToSc   (int8_t *arr)
 {
     return (int8_t)(((HEXtoNR(arr[0])&0x0F)*16)+ HEXtoNR(arr[1]));
 }
 
 
 /*======================================================================*/
-uint16_t meerstetterRS485::MeVarConv_HexToUs   (int8_t *arr)
+uint16_t kathmandu::MeVarConv_HexToUs   (int8_t *arr)
 {
     return (HEXtoNR(*(arr+0))*4096)+ (HEXtoNR(*(arr+1))*256)+ (HEXtoNR(*(arr+2))*16)+ (HEXtoNR(*(arr+3)));
 }
 
 
 /*======================================================================*/
-int16_t  meerstetterRS485::MeVarConv_HexToSs   (int8_t *arr)
+int16_t  kathmandu::MeVarConv_HexToSs   (int8_t *arr)
 {
     return (((int16_t)HEXtoNR(arr[0])<<12)+ ((int16_t)HEXtoNR(arr[1])<<8)+ ((int16_t)HEXtoNR(arr[2])<<4)+ (int16_t)HEXtoNR(arr[3]));
 }
 
 
 /*======================================================================*/
-uint32_t meerstetterRS485::MeVarConv_HexToUl   (int8_t *arr)
+uint32_t kathmandu::MeVarConv_HexToUl   (int8_t *arr)
 {
     return 
         (((uint32_t)HEXtoNR(arr[0])<<28)   + ((uint32_t)HEXtoNR(arr[1])<<24)+  
@@ -819,7 +819,7 @@ uint32_t meerstetterRS485::MeVarConv_HexToUl   (int8_t *arr)
 
 
 /*======================================================================*/
-int32_t  meerstetterRS485::MeVarConv_HexToSl   (int8_t *arr)
+int32_t  kathmandu::MeVarConv_HexToSl   (int8_t *arr)
 {
     return 
         (((int32_t)HEXtoNR(arr[0])<<28)    + ((int32_t)HEXtoNR(arr[1])<<24)+  
@@ -830,7 +830,7 @@ int32_t  meerstetterRS485::MeVarConv_HexToSl   (int8_t *arr)
 
 
 /*======================================================================*/
-float    meerstetterRS485::MeVarConv_HexToFloat(int8_t *arr)
+float    kathmandu::MeVarConv_HexToFloat(int8_t *arr)
 {
     uint32_t temp;
     float fpv;
@@ -841,82 +841,82 @@ float    meerstetterRS485::MeVarConv_HexToFloat(int8_t *arr)
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddDigitHex   (int8_t *arr, uint8_t  value)
+void kathmandu::MeVarConv_AddDigitHex   (int8_t *arr, uint8_t  value)
 {
-    *arr = meerstetterRS485::cHex[value]; arr++;
+    *arr = kathmandu::cHex[value]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddUcHex      (int8_t *arr, uint8_t  value)
+void kathmandu::MeVarConv_AddUcHex      (int8_t *arr, uint8_t  value)
 {
-    *arr = meerstetterRS485::cHex[value/16]; arr++;
-    *arr = meerstetterRS485::cHex[value%16]; arr++;
+    *arr = kathmandu::cHex[value/16]; arr++;
+    *arr = kathmandu::cHex[value%16]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddScHex      (int8_t *arr, int8_t   value)
+void kathmandu::MeVarConv_AddScHex      (int8_t *arr, int8_t   value)
 {
     uint8_t us = (uint8_t)value;
-    *arr = meerstetterRS485::cHex[(us>>4)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(us   )&0x00F]; arr++;
+    *arr = kathmandu::cHex[(us>>4)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(us   )&0x00F]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddUsHex      (int8_t *arr, uint16_t value)
+void kathmandu::MeVarConv_AddUsHex      (int8_t *arr, uint16_t value)
 {
     value = value & 0x0000FFFF;
-    *arr = meerstetterRS485::cHex[value/4096]; arr++;
-    *arr = meerstetterRS485::cHex[(value/256)%16]; arr++;
-    *arr = meerstetterRS485::cHex[(value%256)/16]; arr++;
-    *arr = meerstetterRS485::cHex[(value%256)%16]; arr++;
+    *arr = kathmandu::cHex[value/4096]; arr++;
+    *arr = kathmandu::cHex[(value/256)%16]; arr++;
+    *arr = kathmandu::cHex[(value%256)/16]; arr++;
+    *arr = kathmandu::cHex[(value%256)%16]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddSsHex      (int8_t *arr, int16_t  value)
+void kathmandu::MeVarConv_AddSsHex      (int8_t *arr, int16_t  value)
 {
     uint16_t us = (uint16_t)value;
-    *arr = meerstetterRS485::cHex[(us>>12)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(us>>8)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(us>>4)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(us   )&0x00F]; arr++;
+    *arr = kathmandu::cHex[(us>>12)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(us>>8)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(us>>4)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(us   )&0x00F]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddUlHex      (int8_t *arr, uint32_t value)
+void kathmandu::MeVarConv_AddUlHex      (int8_t *arr, uint32_t value)
 {
-    *arr = meerstetterRS485::cHex[value>>28]; arr++;
-    *arr = meerstetterRS485::cHex[(value>>24)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(value>>20)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(value>>16)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(value>>12)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(value>>8)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(value>>4)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(value   )&0x00F]; arr++;
+    *arr = kathmandu::cHex[value>>28]; arr++;
+    *arr = kathmandu::cHex[(value>>24)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(value>>20)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(value>>16)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(value>>12)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(value>>8)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(value>>4)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(value   )&0x00F]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddSlHex      (int8_t *arr, int32_t  value)
+void kathmandu::MeVarConv_AddSlHex      (int8_t *arr, int32_t  value)
 {
     uint32_t ul = (uint32_t)value;
-    *arr = meerstetterRS485::cHex[ul>>28]; arr++;
-    *arr = meerstetterRS485::cHex[(ul>>24)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(ul>>20)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(ul>>16)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(ul>>12)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(ul>>8)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(ul>>4)&0x00F]; arr++;
-    *arr = meerstetterRS485::cHex[(ul   )&0x00F]; arr++;
+    *arr = kathmandu::cHex[ul>>28]; arr++;
+    *arr = kathmandu::cHex[(ul>>24)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(ul>>20)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(ul>>16)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(ul>>12)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(ul>>8)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(ul>>4)&0x00F]; arr++;
+    *arr = kathmandu::cHex[(ul   )&0x00F]; arr++;
 }
 
 
 /*======================================================================*/
-void meerstetterRS485::MeVarConv_AddFloatHex   (int8_t *arr, float    value)
+void kathmandu::MeVarConv_AddFloatHex   (int8_t *arr, float    value)
 {
     uint32_t lvalue;
     memcpy(&lvalue, &value, sizeof(value));
@@ -925,7 +925,7 @@ void meerstetterRS485::MeVarConv_AddFloatHex   (int8_t *arr, float    value)
 
 
 /*======================================================================*/
-uint8_t meerstetterRS485::HEXtoNR(int8_t uc)
+uint8_t kathmandu::HEXtoNR(int8_t uc)
 {
     switch(uc)
     {
@@ -959,7 +959,7 @@ uint8_t meerstetterRS485::HEXtoNR(int8_t uc)
 //
 // helper functions
 //
-bool meerstetterRS485::StartTEC(uint8_t Address)
+bool kathmandu::StartTEC(uint8_t Address)
 {
     bool    retVal      = false;
     uint8_t Instance    = 1;
@@ -1012,7 +1012,7 @@ bool meerstetterRS485::StartTEC(uint8_t Address)
 }
 
 
-bool meerstetterRS485::StopTEC(uint8_t Address)
+bool kathmandu::StopTEC(uint8_t Address)
 {
     bool    retVal      = false;
     uint8_t Instance    = 1;
@@ -1068,7 +1068,7 @@ bool meerstetterRS485::StopTEC(uint8_t Address)
 }
 
 
-bool meerstetterRS485::TECRunning(uint8_t Address)
+bool kathmandu::TECRunning(uint8_t Address)
 {
     bool retVal = false;
     MeParLongFields FieldVal;
@@ -1111,7 +1111,7 @@ bool meerstetterRS485::TECRunning(uint8_t Address)
 }
 
 
-bool meerstetterRS485::TECPresent(uint8_t Address)
+bool kathmandu::TECPresent(uint8_t Address)
 {
     bool retVal = false;
     MeParLongFields FieldVal;
@@ -1145,7 +1145,7 @@ bool meerstetterRS485::TECPresent(uint8_t Address)
     return(retVal);
 }
 
-bool meerstetterRS485::SetTECTemp(uint8_t Address, float temp)
+bool kathmandu::SetTECTemp(uint8_t Address, float temp)
 {
     bool retVal = true;
     uint8_t Instance    = 1; 
@@ -1244,7 +1244,7 @@ bool meerstetterRS485::SetTECTemp(uint8_t Address, float temp)
 //
 // TODO:  find the correct commands
 //
-bool meerstetterRS485::GetTECTemp(uint8_t Address, float* setPoint, float* actualTemp)
+bool kathmandu::GetTECTemp(uint8_t Address, float* setPoint, float* actualTemp)
 {
     bool retVal = true;
     uint8_t Instance    = 1; 
@@ -1310,7 +1310,7 @@ bool meerstetterRS485::GetTECTemp(uint8_t Address, float* setPoint, float* actua
 
 
 // TODO: verify the uint16_t to uint8_t demotion is OK for tec_address .. should be
-bool meerstetterRS485::GetTECInfo(uint8_t Address, uint32_t* deviceType, uint32_t* hwVersion,
+bool kathmandu::GetTECInfo(uint8_t Address, uint32_t* deviceType, uint32_t* hwVersion,
                 uint32_t* fwVersion, uint32_t* serialNumber, uint32_t* deviceStatus,
                 uint32_t* errNumber, uint32_t* errInstance, uint32_t* errParameter)
 {

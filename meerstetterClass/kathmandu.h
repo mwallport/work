@@ -1,5 +1,5 @@
-#ifndef __MEERSTETTER__
-#define __MEERSTETTER__
+#ifndef __KATHMANDU__
+#define __KATHMANDU__
 /*
  #if defined(ARDUINO) && ARDUINO >= 100
       #include "Arduino.h"
@@ -84,11 +84,11 @@ typedef struct _statsBlock
 } statsBlock;
 
 
-class meerstetterRS485
+class kathmandu
 {
     public:
-    meerstetterRS485(uint32_t);
-    virtual ~ meerstetterRS485();
+    kathmandu(uint32_t);
+    virtual ~ kathmandu();
 
     void MePort_SendByte(int8_t in, MePort_SB FirstLast);
     void MePort_ReceiveByte(int8_t *arr);
@@ -152,9 +152,9 @@ class meerstetterRS485
     static const uint16_t CRC16_table_C[256];
 
     private:
-    meerstetterRS485();
-    meerstetterRS485(const meerstetterRS485&);
-    meerstetterRS485 operator=(const meerstetterRS485&);
+    kathmandu();
+    kathmandu(const kathmandu&);
+    kathmandu operator=(const kathmandu&);
 };
 
 

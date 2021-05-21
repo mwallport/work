@@ -203,9 +203,9 @@ SHTSensor sht;
 huber chiller(9600);
 
 //
-// meerstetter communication
+// kathmandu communication
 //
-meerstetterRS485 ms(57600);
+kathmandu ms(57600);
 
 //
 // control PC communication

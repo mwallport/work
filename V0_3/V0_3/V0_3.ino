@@ -6,7 +6,7 @@
 #include "SHTSensor.h"          // SHT sensor interface library
 #include <controlProtocol.h>
 #include <huber.h>              // huber chiller communication library
-#include <meerstetterRS485.h>   // meerstetter TEC communication library
+#include <kathmandu.h>
 #include <eventlog.h>
 #include "V0_3.h" 
 
@@ -145,7 +145,7 @@ bool startSHTSensor(void)
 // return true only if
 // - LCD is up
 // - SHTSensor is up
-// - Meersteters are up
+// - Kathmandus are up
 // - chiller is running
 //
 bool startUp(void)
@@ -1658,7 +1658,7 @@ void handleSetTECTemperature(void)
 
                     //
                     // TODO: DO NOT update the TEC's set point temperature ! 
-                    // rather, getStatus() queries the Meerstetter device
+                    // rather, getStatus() queries the Kathmandu device
                     //
                     // TODO: document this behavior, update may not show on LCD
                     // for 'a few seconds' until getStatus() queries the device
